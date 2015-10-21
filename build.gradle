@@ -21,6 +21,7 @@ dependencies {
     provided "org.embulk:embulk-core:0.7.4"
     // compile "YOUR_JAR_DEPENDENCY_GROUP:YOUR_JAR_DEPENDENCY_MODULE:YOUR_JAR_DEPENDENCY_VERSION"
     compile "org.apache.commons:commons-vfs2:2.+"
+    compile "com.jcraft:jsch:0.1.53"
     testCompile "junit:junit:4.+"
 }
 
