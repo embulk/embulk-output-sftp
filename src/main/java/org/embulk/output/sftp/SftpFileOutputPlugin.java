@@ -53,6 +53,10 @@ public class SftpFileOutputPlugin
         @ConfigDefault("600") // 10 munites
         public int getSftpConnectionTimeout();
 
+        @Config("working_file_schema")
+        @ConfigDefault("ram")
+        public String getWorkingFileScheme();
+
         @Config("path_prefix")
         public String getPathPrefix();
 

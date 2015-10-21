@@ -35,14 +35,15 @@ public class SftpFileOutput
     private final String userInfo;
     private final String host;
     private final int port;
+    private final String workingFileScheme;
     private final String pathPrefix;
     private final String sequenceFormat;
     private final String fileNameExtension;
 
     private final int taskIndex;
     private int fileIndex = 0;
-    private FileObject currentRamFile;
-    private OutputStream currentRamFileOutputStream;
+    private FileObject currentWorkingFile;
+    private OutputStream currentWorkingFileOutputStream;
 
     private StandardFileSystemManager initializeStandardFileSystemManager()
     {
@@ -99,6 +100,7 @@ public class SftpFileOutput
         this.host = task.getHost();
         this.port = task.getPort();
         this.pathPrefix = task.getPathPrefix();
+        this.workingFileScheme = task.getWorkingFileScheme();
         this.sequenceFormat = task.getSequenceFormat();
         this.fileNameExtension = task.getFileNameExtension();
         this.taskIndex = taskIndex;
@@ -110,9 +112,9 @@ public class SftpFileOutput
         closeCurrentWithUpload();
 
         try {
-            currentRamFile = newRamFile(getRamUri(getOutputFilePath()));
-            currentRamFileOutputStream = getCurrentRamFileOutputStream();
-            logger.info("new ram file: {}", currentRamFile.getPublicURIString());
+            currentWorkingFile = newWorkingFile(getWorkingFileUri(getOutputFilePath()));
+            currentWorkingFileOutputStream = currentWorkingFile.getContent().getOutputStream();
+            logger.info("new working file: {}", currentWorkingFile.getPublicURIString());
         }
         catch (FileSystemException e) {
             logger.error(e.getMessage());
@@ -127,12 +129,12 @@ public class SftpFileOutput
     @Override
     public void add(Buffer buffer)
     {
-        if (currentRamFile == null) {
+        if (currentWorkingFile == null) {
             throw new IllegalStateException("nextFile() must be called before poll()");
         }
 
         try {
-            currentRamFileOutputStream.write(buffer.array(), buffer.offset(), buffer.limit());
+            currentWorkingFileOutputStream.write(buffer.array(), buffer.offset(), buffer.limit());
         }
         catch (IOException e) {
             logger.error(e.getMessage());
@@ -168,9 +170,9 @@ public class SftpFileOutput
     private void closeCurrentWithUpload()
     {
         try {
-            closeCurrentRamFileContent();
-            uploadCurrentRamFileToSftp();
-            closeCurrentRamFile();
+            closeCurrentWorkingFileContent();
+            uploadCurrentWorkingFileToSftp();
+            closeCurrentWorkingFile();
         }
         catch (URISyntaxException e) {
             logger.error(e.getMessage());
@@ -181,53 +183,53 @@ public class SftpFileOutput
             Throwables.propagate(e);
         }
         fileIndex++;
-        currentRamFile = null;
+        currentWorkingFile = null;
     }
 
-    private void closeCurrentRamFileContent()
+    private void closeCurrentWorkingFileContent()
             throws IOException
     {
-        if (currentRamFile == null) {
+        if (currentWorkingFile == null) {
             return;
         }
-        currentRamFileOutputStream.close();
-        currentRamFile.getContent().close();
+        currentWorkingFileOutputStream.close();
+        currentWorkingFile.getContent().close();
     }
 
-    private void uploadCurrentRamFileToSftp()
+    private void uploadCurrentWorkingFileToSftp()
             throws FileSystemException, URISyntaxException
     {
-        if (currentRamFile == null) {
+        if (currentWorkingFile == null) {
             return;
         }
 
-        try (FileObject remoteSftpFile = newSftpFile(getSftpUri(getOutputFilePath()))) {
-            remoteSftpFile.copyFrom(currentRamFile, Selectors.SELECT_SELF);
+        try (FileObject remoteSftpFile = newSftpFile(getSftpFileUri(getOutputFilePath()))) {
+            remoteSftpFile.copyFrom(currentWorkingFile, Selectors.SELECT_SELF);
             logger.info("Upload: {}", remoteSftpFile.getPublicURIString());
         }
     }
 
-    private void closeCurrentRamFile()
+    private void closeCurrentWorkingFile()
             throws FileSystemException
     {
-        if (currentRamFile == null) {
+        if (currentWorkingFile == null) {
             return;
         }
 
-        currentRamFile.close();
-        currentRamFile.delete();
+        currentWorkingFile.close();
+        currentWorkingFile.delete();
     }
 
-    private URI getSftpUri(String remoteFilePath)
+    private URI getSftpFileUri(String remoteFilePath)
             throws URISyntaxException
     {
         return new URI("sftp", userInfo, host, port, remoteFilePath, null, null);
     }
 
-    private URI getRamUri(String remoteFilePath)
+    private URI getWorkingFileUri(String remoteFilePath)
             throws URISyntaxException
     {
-        return new URI("ram", null, remoteFilePath, null);
+        return new URI(workingFileScheme, null, remoteFilePath, null);
     }
 
     private String getOutputFilePath()
@@ -241,17 +243,11 @@ public class SftpFileOutput
         return manager.resolveFile(sftpUri.toString(), fsOptions);
     }
 
-    private FileObject newRamFile(URI ramUri)
+    private FileObject newWorkingFile(URI workingFileUri)
             throws FileSystemException
     {
-        FileObject ramFile = manager.resolveFile(ramUri);
-        ramFile.createFile();
-        return ramFile;
-    }
-
-    private OutputStream getCurrentRamFileOutputStream()
-            throws FileSystemException
-    {
-        return currentRamFile.getContent().getOutputStream(true);
+        FileObject workingFile = manager.resolveFile(workingFileUri);
+        workingFile.createFile();
+        return workingFile;
     }
 }
