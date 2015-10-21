@@ -39,11 +39,11 @@ out:
 ```
 
 ## Run Example
-replace settings in `example/config.yml` before running.
+replace settings in `example/sample.yml` before running.
 
 ```
 $ ./gradlew classpath
-$ embulk run -Ilib example/config.yml
+$ embulk run -Ilib example/sample.yml
 ```
 
 ## Build
