@@ -18,6 +18,7 @@ Stores files on a SFTP Server
 - **secret_key_file**: (string, default: `null`)
 - **secret_key_passphrase**: (string, default: `""`)
 - **user_directory_is_root**: (boolean, default: `true`)
+- **timeout**: sftp connection timeout seconds (integer, default: `600`)
 - **path_prefix**: Prefix of output paths (string, required)
 - **file_ext**: Extension of output files (string, required)
 - **sequence_format**: Format for sequence part of output files (string, default: `".%03d.%02d"`)
@@ -33,6 +34,7 @@ out:
   secret_key_file: /Users/civitaspo/.ssh/id_rsa
   secret_key_passphrase: secret_pass
   user_directory_is_root: false
+  timeout: 600
   path_prefix: /data/sftp
   file_ext: _20151020.tsv
   sequence_format: ".%01d%01d"
