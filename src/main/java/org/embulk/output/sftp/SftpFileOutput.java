@@ -42,6 +42,7 @@ public class SftpFileOutput
     private final int taskIndex;
     private int fileIndex = 0;
     private FileObject currentRamFile;
+    private OutputStream currentRamFileOutputStream;
 
     private StandardFileSystemManager initializeStandardFileSystemManager()
     {
@@ -109,6 +110,7 @@ public class SftpFileOutput
 
         try {
             currentRamFile = newRamFile(getRamUri(getOutputFilePath()));
+            currentRamFileOutputStream = getCurrentRamFileOutputStream();
             logger.info("new ram file: {}", currentRamFile.getPublicURIString());
         }
         catch (FileSystemException e) {
@@ -129,7 +131,7 @@ public class SftpFileOutput
         }
 
         try {
-            getCurrentRamFileOutputStream().write(buffer.array(), buffer.offset(), buffer.limit());
+            currentRamFileOutputStream.write(buffer.array(), buffer.offset(), buffer.limit());
         }
         catch (IOException e) {
             logger.error(e.getMessage());
@@ -169,11 +171,11 @@ public class SftpFileOutput
             uploadCurrentRamFileToSftp();
             closeCurrentRamFile();
         }
-        catch (FileSystemException e) {
+        catch (URISyntaxException e) {
             logger.error(e.getMessage());
             Throwables.propagate(e);
         }
-        catch (URISyntaxException e) {
+        catch (IOException e) {
             logger.error(e.getMessage());
             Throwables.propagate(e);
         }
@@ -182,11 +184,12 @@ public class SftpFileOutput
     }
 
     private void closeCurrentRamFileContent()
-            throws FileSystemException
+            throws IOException
     {
         if (currentRamFile == null) {
             return;
         }
+        currentRamFileOutputStream.close();
         currentRamFile.getContent().close();
     }
 
