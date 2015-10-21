@@ -118,10 +118,6 @@ public class SftpFileOutput
             logger.error(e.getMessage());
             Throwables.propagate(e);
         }
-        catch (URISyntaxException e) {
-            logger.error(e.getMessage());
-            Throwables.propagate(e);
-        }
     }
 
     @Override
@@ -186,9 +182,14 @@ public class SftpFileOutput
     }
 
     private URI getSftpFileUri(String remoteFilePath)
-            throws URISyntaxException
     {
-        return new URI("sftp", userInfo, host, port, remoteFilePath, null, null);
+        try {
+            return new URI("sftp", userInfo, host, port, remoteFilePath, null, null);
+        }
+        catch (URISyntaxException e) {
+            logger.error(e.getMessage());
+            throw new RuntimeException(e);
+        }
     }
 
     private String getOutputFilePath()
