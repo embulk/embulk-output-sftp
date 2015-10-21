@@ -1,15 +1,10 @@
 package org.embulk.output.sftp;
 
 import com.google.common.base.Throwables;
-import io.netty.util.internal.logging.Slf4JLoggerFactory;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
-import org.apache.commons.vfs2.FileSystemManager;
 import org.apache.commons.vfs2.FileSystemOptions;
 import org.apache.commons.vfs2.Selectors;
-import org.apache.commons.vfs2.VFS;
 import org.apache.commons.vfs2.impl.StandardFileSystemManager;
 import org.apache.commons.vfs2.provider.sftp.IdentityInfo;
 import org.apache.commons.vfs2.provider.sftp.SftpFileSystemConfigBuilder;
@@ -20,14 +15,13 @@ import org.embulk.spi.FileOutput;
 import org.embulk.spi.TransactionalFileOutput;
 import org.slf4j.Logger;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-import static org.embulk.output.sftp.SftpFileOutputPlugin.*;
+import static org.embulk.output.sftp.SftpFileOutputPlugin.PluginTask;
 
 /**
  * Created by takahiro.nakayama on 10/20/15.
