@@ -1,53 +1,81 @@
 package org.embulk.output.sftp;
 
-import java.util.List;
 import com.google.common.base.Optional;
-import org.embulk.config.TaskReport;
+import com.google.common.base.Throwables;
+import org.apache.commons.logging.Log;
+import org.apache.commons.vfs2.FileObject;
+import org.apache.commons.vfs2.FileSystemException;
+import org.apache.commons.vfs2.FileSystemManager;
+import org.apache.commons.vfs2.FileSystemOptions;
+import org.apache.commons.vfs2.VFS;
+import org.apache.commons.vfs2.impl.StandardFileSystemManager;
+import org.apache.commons.vfs2.provider.sftp.IdentityInfo;
+import org.apache.commons.vfs2.provider.sftp.SftpFileSystemConfigBuilder;
 import org.embulk.config.Config;
 import org.embulk.config.ConfigDefault;
 import org.embulk.config.ConfigDiff;
 import org.embulk.config.ConfigSource;
 import org.embulk.config.Task;
+import org.embulk.config.TaskReport;
 import org.embulk.config.TaskSource;
+import org.embulk.spi.Buffer;
 import org.embulk.spi.Exec;
 import org.embulk.spi.FileOutputPlugin;
 import org.embulk.spi.TransactionalFileOutput;
+import org.slf4j.Logger;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.List;
 
 public class SftpFileOutputPlugin
         implements FileOutputPlugin
 {
+    private Logger logger = Exec.getLogger(SftpFileOutputPlugin.class);
+
     public interface PluginTask
             extends Task
     {
-        // configuration option 1 (required integer)
-        @Config("option1")
-        public int getOption1();
+        @Config("host")
+        public String getHost();
 
-        // configuration option 2 (optional string, null is not allowed)
-        @Config("optoin2")
-        @ConfigDefault("\"myvalue\"")
-        public String getOption2();
+        @Config("port")
+        @ConfigDefault("22")
+        public int getPort();
 
-        // configuration option 3 (optional string, null is allowed)
-        @Config("optoin3")
+        @Config("user")
+        public String getUser();
+
+        @Config("password")
         @ConfigDefault("null")
-        public Optional<String> getOption3();
+        public Optional<String> getPassword();
 
-        // usually, run() method needs to write multiple files because size of a file
-        // can be very large. So, file name will be:
-        //
-        //    path_prefix + String.format(sequence_format, taskIndex, sequenceCounterInRunMethod) + file_ext
-        //
+        @Config("secret_key_file")
+        @ConfigDefault("null")
+        public Optional<String> getSecretKeyFilePath();
 
-        //@Config("path_prefix")
-        //public String getPathPrefix();
+        @Config("secret_key_passphrase")
+        @ConfigDefault("\"\"")
+        public String getSecretKeyPassphrase();
 
-        //@Config("file_ext")
-        //public String getFileNameExtension();
+        @Config("user_directory_is_root")
+        @ConfigDefault("true")
+        public Boolean getUserDirIsRoot();
 
-        //@Config("sequence_format")
-        //@ConfigDefault("\"%03d.%02d.\"")
-        //public String getSequenceFormat();
+        @Config("path_prefix")
+        public String getPathPrefix();
+
+        @Config("file_ext")
+        public String getFileNameExtension();
+
+        @Config("sequence_format")
+        @ConfigDefault("\"%03d.%02d.\"")
+        public String getSequenceFormat();
+
     }
 
     @Override
@@ -82,12 +110,7 @@ public class SftpFileOutputPlugin
     @Override
     public TransactionalFileOutput open(TaskSource taskSource, final int taskIndex)
     {
-        PluginTask task = taskSource.loadTask(PluginTask.class);
-
-        // Write your code here :)
-        throw new UnsupportedOperationException("SftpFileOutputPlugin.open method is not implemented yet");
-
-        // See LocalFileOutputPlugin as an example implementation:
-        // https://github.com/embulk/embulk/blob/master/embulk-standards/src/main/java/org/embulk/standards/LocalFileOutputPlugin.java
+        final PluginTask task = taskSource.loadTask(PluginTask.class);
+        return new SftpFileOutput(task, taskIndex);
     }
 }
