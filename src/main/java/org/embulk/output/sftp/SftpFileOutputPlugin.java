@@ -50,7 +50,7 @@ public class SftpFileOutputPlugin
         public Boolean getUserDirIsRoot();
 
         @Config("timeout")
-        @ConfigDefault("600") // 10 munites
+        @ConfigDefault("600") // 10 minutes
         public int getSftpConnectionTimeout();
 
         @Config("path_prefix")
