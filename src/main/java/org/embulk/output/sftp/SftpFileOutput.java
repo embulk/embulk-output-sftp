@@ -46,9 +46,10 @@ public class SftpFileOutput
 
     private StandardFileSystemManager initializeStandardFileSystemManager()
     {
-//        TODO: change logging format: org.apache.commons.logging.Log
-//        System.setProperty("org.apache.commons.logging.Log",
-//                           "org.apache.commons.logging.impl.NoOpLog");
+        if (logger.isDebugEnabled()) {
+            // TODO: change logging format: org.apache.commons.logging.Log
+            System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
+        }
         StandardFileSystemManager manager = new StandardFileSystemManager();
         try {
             manager.init();
@@ -177,8 +178,11 @@ public class SftpFileOutput
             logger.error(e.getMessage());
             Throwables.propagate(e);
         }
-        fileIndex++;
-        currentFile = null;
+        finally {
+            fileIndex++;
+            currentFile = null;
+            currentFileOutputStream = null;
+        }
     }
 
     private URI getSftpFileUri(String remoteFilePath)

@@ -53,3 +53,7 @@ $ embulk run -Ilib example/sample.yml
 ```
 $ ./gradlew gem  # -t to watch change of files and rebuild continuously
 ```
+
+## Note
+
+This plugin uses "org.apache.commons:commons-vfs" and the library uses the logger "org.apache.commons.logging.Log". So, this plugin suppress the logger's message except when embulk log level is debug.
