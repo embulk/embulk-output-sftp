@@ -35,21 +35,21 @@ public class SftpFileOutput
     private final String userInfo;
     private final String host;
     private final int port;
-    private final String workingFileScheme;
     private final String pathPrefix;
     private final String sequenceFormat;
     private final String fileNameExtension;
 
     private final int taskIndex;
     private int fileIndex = 0;
-    private FileObject currentWorkingFile;
-    private OutputStream currentWorkingFileOutputStream;
+    private FileObject currentFile;
+    private OutputStream currentFileOutputStream;
 
     private StandardFileSystemManager initializeStandardFileSystemManager()
     {
-//        TODO: change logging format: org.apache.commons.logging.Log
-//        System.setProperty("org.apache.commons.logging.Log",
-//                           "org.apache.commons.logging.impl.NoOpLog");
+        if (logger.isDebugEnabled()) {
+            // TODO: change logging format: org.apache.commons.logging.Log
+            System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
+        }
         StandardFileSystemManager manager = new StandardFileSystemManager();
         try {
             manager.init();
@@ -100,7 +100,6 @@ public class SftpFileOutput
         this.host = task.getHost();
         this.port = task.getPort();
         this.pathPrefix = task.getPathPrefix();
-        this.workingFileScheme = task.getWorkingFileScheme();
         this.sequenceFormat = task.getSequenceFormat();
         this.fileNameExtension = task.getFileNameExtension();
         this.taskIndex = taskIndex;
@@ -109,18 +108,14 @@ public class SftpFileOutput
     @Override
     public void nextFile()
     {
-        closeCurrentWithUpload();
+        closeCurrentFile();
 
         try {
-            currentWorkingFile = newWorkingFile(getWorkingFileUri(getOutputFilePath()));
-            currentWorkingFileOutputStream = currentWorkingFile.getContent().getOutputStream();
-            logger.info("new working file: {}", currentWorkingFile.getPublicURIString());
+            currentFile = newSftpFile(getSftpFileUri(getOutputFilePath()));
+            currentFileOutputStream = currentFile.getContent().getOutputStream();
+            logger.info("new sftp file: {}", currentFile.getPublicURIString());
         }
         catch (FileSystemException e) {
-            logger.error(e.getMessage());
-            Throwables.propagate(e);
-        }
-        catch (URISyntaxException e) {
             logger.error(e.getMessage());
             Throwables.propagate(e);
         }
@@ -129,12 +124,12 @@ public class SftpFileOutput
     @Override
     public void add(Buffer buffer)
     {
-        if (currentWorkingFile == null) {
+        if (currentFile == null) {
             throw new IllegalStateException("nextFile() must be called before poll()");
         }
 
         try {
-            currentWorkingFileOutputStream.write(buffer.array(), buffer.offset(), buffer.limit());
+            currentFileOutputStream.write(buffer.array(), buffer.offset(), buffer.limit());
         }
         catch (IOException e) {
             logger.error(e.getMessage());
@@ -146,13 +141,13 @@ public class SftpFileOutput
     @Override
     public void finish()
     {
-        closeCurrentWithUpload();
+        closeCurrentFile();
     }
 
     @Override
     public void close()
     {
-        closeCurrentWithUpload();
+        closeCurrentFile();
         manager.close();
     }
 
@@ -167,69 +162,38 @@ public class SftpFileOutput
         return null;
     }
 
-    private void closeCurrentWithUpload()
+
+    private void closeCurrentFile()
     {
-        try {
-            closeCurrentWorkingFileContent();
-            uploadCurrentWorkingFileToSftp();
-            closeCurrentWorkingFile();
+        if (currentFile == null) {
+            return;
         }
-        catch (URISyntaxException e) {
-            logger.error(e.getMessage());
-            Throwables.propagate(e);
+
+        try {
+            currentFileOutputStream.close();
+            currentFile.getContent().close();
+            currentFile.close();
         }
         catch (IOException e) {
             logger.error(e.getMessage());
             Throwables.propagate(e);
         }
-        fileIndex++;
-        currentWorkingFile = null;
-    }
-
-    private void closeCurrentWorkingFileContent()
-            throws IOException
-    {
-        if (currentWorkingFile == null) {
-            return;
+        finally {
+            fileIndex++;
+            currentFile = null;
+            currentFileOutputStream = null;
         }
-        currentWorkingFileOutputStream.close();
-        currentWorkingFile.getContent().close();
-    }
-
-    private void uploadCurrentWorkingFileToSftp()
-            throws FileSystemException, URISyntaxException
-    {
-        if (currentWorkingFile == null) {
-            return;
-        }
-
-        try (FileObject remoteSftpFile = newSftpFile(getSftpFileUri(getOutputFilePath()))) {
-            remoteSftpFile.copyFrom(currentWorkingFile, Selectors.SELECT_SELF);
-            logger.info("Upload: {}", remoteSftpFile.getPublicURIString());
-        }
-    }
-
-    private void closeCurrentWorkingFile()
-            throws FileSystemException
-    {
-        if (currentWorkingFile == null) {
-            return;
-        }
-
-        currentWorkingFile.close();
-        currentWorkingFile.delete();
     }
 
     private URI getSftpFileUri(String remoteFilePath)
-            throws URISyntaxException
     {
-        return new URI("sftp", userInfo, host, port, remoteFilePath, null, null);
-    }
-
-    private URI getWorkingFileUri(String remoteFilePath)
-            throws URISyntaxException
-    {
-        return new URI(workingFileScheme, null, remoteFilePath, null);
+        try {
+            return new URI("sftp", userInfo, host, port, remoteFilePath, null, null);
+        }
+        catch (URISyntaxException e) {
+            logger.error(e.getMessage());
+            throw new RuntimeException(e);
+        }
     }
 
     private String getOutputFilePath()
@@ -241,13 +205,5 @@ public class SftpFileOutput
             throws FileSystemException
     {
         return manager.resolveFile(sftpUri.toString(), fsOptions);
-    }
-
-    private FileObject newWorkingFile(URI workingFileUri)
-            throws FileSystemException
-    {
-        FileObject workingFile = manager.resolveFile(workingFileUri);
-        workingFile.createFile();
-        return workingFile;
     }
 }
