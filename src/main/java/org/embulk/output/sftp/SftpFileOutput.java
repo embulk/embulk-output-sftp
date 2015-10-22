@@ -46,7 +46,7 @@ public class SftpFileOutput
 
     private StandardFileSystemManager initializeStandardFileSystemManager()
     {
-        if (logger.isDebugEnabled()) {
+        if (!logger.isDebugEnabled()) {
             // TODO: change logging format: org.apache.commons.logging.Log
             System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
         }
