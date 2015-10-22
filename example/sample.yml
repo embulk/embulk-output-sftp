@@ -1,0 +1,39 @@
+in:
+  type: file
+  path_prefix: example/data.csv
+  parser:
+    type: csv
+    charset: UTF-8
+    newline: CRLF
+    null_string: 'NULL'
+    skip_header_lines: 1
+    comment_line_marker: '#'
+    columns:
+      - {name: time,  type: timestamp, format: "%Y-%m-%d"}
+      - {name: id, type: long}
+      - {name: name, type: string}
+      - {name: score, type: double}
+out:
+  type: sftp
+  host: 127.0.0.1
+  port: 22
+  user: your_name
+  password: your_password
+  secret_key_file: your_secret_key_file
+  secret_key_passphrase: your_secret_key_passphrase
+  user_directory_is_root: true
+  path_prefix: /tmp/embulk_output_sftp/data
+  file_ext: .tsv
+  sequence_format: ".%01d%01d"
+  formatter:
+      type: csv
+      delimiter: "\t"
+      newline: CRLF
+      newline_in_field: LF
+      header_line: true
+      charset: UTF-8
+      quote_policy: NONE
+      quote: "\""
+      escape: "\\"
+      null_string: ""
+      default_timezone: 'UTC'
