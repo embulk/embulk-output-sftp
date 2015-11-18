@@ -110,14 +110,14 @@ public class TestSftpFileOutputPlugin
         sshServer.setSubsystemFactories(Collections.<NamedFactory<Command>>singletonList(new SftpSubsystemFactory()));
         sshServer.setCommandFactory(new ScpCommandFactory());
         sshServer.setKeyPairProvider(new SimpleGeneratorHostKeyProvider());
-//        sshServer.setPasswordAuthenticator(new PasswordAuthenticator()
-//        {
-//            @Override
-//            public boolean authenticate(final String username, final String password, final ServerSession session)
-//            {
-//                return USERNAME.contentEquals(username) && PASSWORD.contentEquals(password);
-//            }
-//        });
+        sshServer.setPasswordAuthenticator(new PasswordAuthenticator()
+        {
+            @Override
+            public boolean authenticate(final String username, final String password, final ServerSession session)
+            {
+                return USERNAME.contentEquals(username) && PASSWORD.contentEquals(password);
+            }
+        });
         sshServer.setPublickeyAuthenticator(new PublickeyAuthenticator()
         {
             @Override
