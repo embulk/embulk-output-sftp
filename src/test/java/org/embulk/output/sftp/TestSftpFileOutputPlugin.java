@@ -78,7 +78,7 @@ public class TestSftpFileOutputPlugin
     private Logger logger = runtime.getExec().getLogger(TestSftpFileOutputPlugin.class);
     private FileOutputRunner runner;
     private SshServer sshServer;
-    private static final String HOST = "localhost";
+    private static final String HOST = "127.0.0.1";
     private static final int PORT = 20022;
     private static final String USERNAME = "username";
     private static final String PASSWORD = "password";
