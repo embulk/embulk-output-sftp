@@ -82,6 +82,7 @@ public class SftpFileOutput
             if (task.getSecretKeyFilePath().isPresent()) {
                 IdentityInfo identityInfo = new IdentityInfo(new File((task.getSecretKeyFilePath().get())), task.getSecretKeyPassphrase().getBytes());
                 SftpFileSystemConfigBuilder.getInstance().setIdentityInfo(fsOptions, identityInfo);
+                logger.info("set identity: {}", task.getSecretKeyFilePath().get());
             }
         }
         catch (FileSystemException e) {
