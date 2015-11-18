@@ -4,7 +4,6 @@ import com.google.common.base.Throwables;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.FileSystemOptions;
-import org.apache.commons.vfs2.Selectors;
 import org.apache.commons.vfs2.impl.StandardFileSystemManager;
 import org.apache.commons.vfs2.provider.sftp.IdentityInfo;
 import org.apache.commons.vfs2.provider.sftp.SftpFileSystemConfigBuilder;
@@ -35,6 +34,7 @@ public class SftpFileOutput
     private final String userInfo;
     private final String host;
     private final int port;
+    private final int maxConnectionRetry;
     private final String pathPrefix;
     private final String sequenceFormat;
     private final String fileNameExtension;
@@ -82,6 +82,7 @@ public class SftpFileOutput
             if (task.getSecretKeyFilePath().isPresent()) {
                 IdentityInfo identityInfo = new IdentityInfo(new File((task.getSecretKeyFilePath().get())), task.getSecretKeyPassphrase().getBytes());
                 SftpFileSystemConfigBuilder.getInstance().setIdentityInfo(fsOptions, identityInfo);
+                logger.info("set identity: {}", task.getSecretKeyFilePath().get());
             }
         }
         catch (FileSystemException e) {
@@ -99,6 +100,7 @@ public class SftpFileOutput
         this.fsOptions = initializeFsOptions(task);
         this.host = task.getHost();
         this.port = task.getPort();
+        this.maxConnectionRetry = task.getMaxConnectionRetry();
         this.pathPrefix = task.getPathPrefix();
         this.sequenceFormat = task.getSequenceFormat();
         this.fileNameExtension = task.getFileNameExtension();
@@ -204,6 +206,26 @@ public class SftpFileOutput
     private FileObject newSftpFile(URI sftpUri)
             throws FileSystemException
     {
-        return manager.resolveFile(sftpUri.toString(), fsOptions);
+        int count = 0;
+        while (true) {
+            try {
+                return manager.resolveFile(sftpUri.toString(), fsOptions);
+            }
+            catch (FileSystemException e) {
+                if (++count == maxConnectionRetry) {
+                    throw e;
+                }
+                logger.warn("failed to connect sftp server: " + e.getMessage(), e);
+
+                try {
+                    Thread.sleep(count * 1000); // milliseconds
+                }
+                catch (InterruptedException e1) {
+                    // Ignore this exception
+                    logger.warn(e.getMessage(), e);
+                }
+                logger.warn("retry to connect sftp server: " + count + " times");
+            }
+        }
     }
 }
