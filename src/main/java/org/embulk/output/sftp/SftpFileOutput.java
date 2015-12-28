@@ -218,11 +218,13 @@ public class SftpFileOutput
                 logger.warn("failed to connect sftp server: " + e.getMessage(), e);
 
                 try {
-                    Thread.sleep(count * 1000); // milliseconds
+                    long sleepTime = ((long) Math.pow(2, count) * 1000);
+                    logger.warn("sleep in next connection retry: {} milliseconds", sleepTime);
+                    Thread.sleep(sleepTime); // milliseconds
                 }
                 catch (InterruptedException e1) {
-                    // Ignore this exception
-                    logger.warn(e.getMessage(), e);
+                    // Ignore this exception because this exception is just about `sleep`.
+                    logger.warn(e1.getMessage(), e1);
                 }
                 logger.warn("retry to connect sftp server: " + count + " times");
             }
