@@ -218,7 +218,7 @@ public class SftpFileOutput
                 logger.warn("failed to connect sftp server: " + e.getMessage(), e);
 
                 try {
-                    Thread.sleep(count * 1000); // milliseconds
+                    Thread.sleep(((long) Math.pow(2, count) * 1000)); // milliseconds
                 }
                 catch (InterruptedException e1) {
                     // Ignore this exception
