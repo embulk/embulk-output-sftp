@@ -164,7 +164,7 @@ public class SftpFileOutput
     @Override
     public TaskReport commit()
     {
-        return null;
+        return Exec.newTaskReport();
     }
 
 
