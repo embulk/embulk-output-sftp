@@ -27,7 +27,7 @@ dependencies {
     testCompile "junit:junit:4.+"
     testCompile "org.embulk:embulk-core:0.7.+:tests"
     testCompile "org.embulk:embulk-standards:0.7.+"
-    testCompile "org.apache.sshd:apache-sshd:1.+"
+    testCompile "org.apache.sshd:apache-sshd:1.1.0+"
 }
 
 jacocoTestReport {
