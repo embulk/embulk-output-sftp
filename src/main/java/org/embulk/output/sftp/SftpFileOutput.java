@@ -137,7 +137,9 @@ public class SftpFileOutput
             logger.error(e.getMessage());
             Throwables.propagate(e);
         }
-        buffer.release();
+        finally {
+            buffer.release();
+        }
     }
 
     @Override
