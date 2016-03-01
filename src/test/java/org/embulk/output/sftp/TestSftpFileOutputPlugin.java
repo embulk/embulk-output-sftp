@@ -103,7 +103,7 @@ public class TestSftpFileOutputPlugin
         // setup a mock sftp server
         sshServer = SshServer.setUpDefaultServer();
         VirtualFileSystemFactory fsFactory = new VirtualFileSystemFactory();
-        fsFactory.setUserHomeDir(USERNAME, testFolder.getRoot().getAbsolutePath());
+        fsFactory.setUserHomeDir(USERNAME, testFolder.getRoot().toPath());
         sshServer.setFileSystemFactory(fsFactory);
         sshServer.setHost(HOST);
         sshServer.setPort(PORT);
