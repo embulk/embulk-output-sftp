@@ -7,6 +7,7 @@ import org.apache.commons.vfs2.FileSystemOptions;
 import org.apache.commons.vfs2.impl.StandardFileSystemManager;
 import org.apache.commons.vfs2.provider.sftp.IdentityInfo;
 import org.apache.commons.vfs2.provider.sftp.SftpFileSystemConfigBuilder;
+import org.embulk.config.ConfigException;
 import org.embulk.config.TaskReport;
 import org.embulk.spi.Buffer;
 import org.embulk.spi.Exec;
@@ -56,7 +57,7 @@ public class SftpFileOutput
         }
         catch (FileSystemException e) {
             logger.error(e.getMessage());
-            throw new RuntimeException(e);
+            throw new ConfigException(e);
         }
 
         return manager;
@@ -87,7 +88,7 @@ public class SftpFileOutput
         }
         catch (FileSystemException e) {
             logger.error(e.getMessage());
-            throw new RuntimeException(e);
+            throw new ConfigException(e);
         }
 
         return fsOptions;
@@ -196,7 +197,7 @@ public class SftpFileOutput
         }
         catch (URISyntaxException e) {
             logger.error(e.getMessage());
-            throw new RuntimeException(e);
+            throw new ConfigException(e);
         }
     }
 
