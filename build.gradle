@@ -29,6 +29,8 @@ dependencies {
     testCompile "org.embulk:embulk-core:0.8.6:tests"
     testCompile "org.embulk:embulk-standards:0.8.6"
     testCompile "org.apache.sshd:apache-sshd:1.1.0+"
+    testCompile "org.littleshoot:littleproxy:1.1.0-beta1"
+    testCompile "io.netty:netty-all:4.0.34.Final"
 }
 
 jacocoTestReport {
