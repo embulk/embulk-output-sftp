@@ -17,7 +17,7 @@ Stores files on a SFTP Server
 - **port**: (string, default: `22`)
 - **user**: (string, required)
 - **password**: (string, default: `null`)
-- **secret_key_file**: (string, default: `null`)
+- **secret_key_file**: (string, default: `null`) [see below](#secret-keyfile-configuration)
 - **secret_key_passphrase**: (string, default: `""`)
 - **user_directory_is_root**: (boolean, default: `true`)
 - **timeout**: sftp connection timeout seconds (integer, default: `600`)
@@ -40,6 +40,32 @@ out:
   path_prefix: /data/sftp
   file_ext: _20151020.tsv
   sequence_format: ".%01d%01d"
+```
+
+### Secret Keyfile configuration
+
+Please set path of secret_key_file as follows.
+```
+out:
+  type: sftp
+  ...
+  secret_key_file: /path/to/id_rsa
+  ...
+```
+
+You can also embed contents of secret_key_file at config.yml.
+```
+out:
+  type: sftp
+  ...
+  secret_key_file:
+    content |
+      -----BEGIN RSA PRIVATE KEY-----
+      ABCDEFG...
+      HIJKLMN...
+      OPQRSTU...
+      -----END RSA PRIVATE KEY-----
+  ...
 ```
 
 ## Run Example
