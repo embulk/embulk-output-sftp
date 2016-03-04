@@ -13,8 +13,8 @@ import org.apache.sshd.server.Command;
 import org.apache.sshd.server.SshServer;
 import org.apache.sshd.server.auth.password.PasswordAuthenticator;
 import org.apache.sshd.server.auth.pubkey.PublickeyAuthenticator;
-import org.apache.sshd.server.command.ScpCommandFactory;
 import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider;
+import org.apache.sshd.server.scp.ScpCommandFactory;
 import org.apache.sshd.server.session.ServerSession;
 import org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory;
 import org.embulk.EmbulkTestRuntime;
@@ -103,7 +103,7 @@ public class TestSftpFileOutputPlugin
         // setup a mock sftp server
         sshServer = SshServer.setUpDefaultServer();
         VirtualFileSystemFactory fsFactory = new VirtualFileSystemFactory();
-        fsFactory.setUserHomeDir(USERNAME, testFolder.getRoot().getAbsolutePath());
+        fsFactory.setUserHomeDir(USERNAME, testFolder.getRoot().toPath());
         sshServer.setFileSystemFactory(fsFactory);
         sshServer.setHost(HOST);
         sshServer.setPort(PORT);
