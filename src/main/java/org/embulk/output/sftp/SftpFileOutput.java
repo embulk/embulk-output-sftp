@@ -8,6 +8,7 @@ import org.apache.commons.vfs2.FileSystemOptions;
 import org.apache.commons.vfs2.impl.StandardFileSystemManager;
 import org.apache.commons.vfs2.provider.sftp.IdentityInfo;
 import org.apache.commons.vfs2.provider.sftp.SftpFileSystemConfigBuilder;
+import org.embulk.config.ConfigException;
 import org.embulk.config.TaskReport;
 import org.embulk.spi.Buffer;
 import org.embulk.spi.Exec;
@@ -58,7 +59,7 @@ public class SftpFileOutput
         }
         catch (FileSystemException e) {
             logger.error(e.getMessage());
-            throw new RuntimeException(e);
+            throw new ConfigException(e);
         }
 
         return manager;
@@ -92,7 +93,7 @@ public class SftpFileOutput
         }
         catch (FileSystemException e) {
             logger.error(e.getMessage());
-            throw new RuntimeException(e);
+            throw new ConfigException(e);
         }
 
         return fsOptions;
@@ -142,7 +143,9 @@ public class SftpFileOutput
             logger.error(e.getMessage());
             Throwables.propagate(e);
         }
-        buffer.release();
+        finally {
+            buffer.release();
+        }
     }
 
     @Override
@@ -166,7 +169,7 @@ public class SftpFileOutput
     @Override
     public TaskReport commit()
     {
-        return null;
+        return Exec.newTaskReport();
     }
 
 
@@ -199,7 +202,7 @@ public class SftpFileOutput
         }
         catch (URISyntaxException e) {
             logger.error(e.getMessage());
-            throw new RuntimeException(e);
+            throw new ConfigException(e);
         }
     }
 
