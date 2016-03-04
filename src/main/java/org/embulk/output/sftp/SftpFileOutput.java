@@ -1,5 +1,6 @@
 package org.embulk.output.sftp;
 
+import com.google.common.base.Function;
 import com.google.common.base.Throwables;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
@@ -12,6 +13,7 @@ import org.embulk.spi.Buffer;
 import org.embulk.spi.Exec;
 import org.embulk.spi.FileOutput;
 import org.embulk.spi.TransactionalFileOutput;
+import org.embulk.spi.unit.LocalFile;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -80,7 +82,10 @@ public class SftpFileOutput
             SftpFileSystemConfigBuilder.getInstance().setTimeout(fsOptions, task.getSftpConnectionTimeout());
             SftpFileSystemConfigBuilder.getInstance().setStrictHostKeyChecking(fsOptions, "no");
             if (task.getSecretKeyFilePath().isPresent()) {
-                IdentityInfo identityInfo = new IdentityInfo(new File((task.getSecretKeyFilePath().get())), task.getSecretKeyPassphrase().getBytes());
+                IdentityInfo identityInfo = new IdentityInfo(
+                    new File((task.getSecretKeyFilePath().transform(localFileToPathString()).get())),
+                    task.getSecretKeyPassphrase().getBytes()
+                );
                 SftpFileSystemConfigBuilder.getInstance().setIdentityInfo(fsOptions, identityInfo);
                 logger.info("set identity: {}", task.getSecretKeyFilePath().get());
             }
@@ -229,5 +234,16 @@ public class SftpFileOutput
                 logger.warn("retry to connect sftp server: " + count + " times");
             }
         }
+    }
+
+    private Function<LocalFile, String> localFileToPathString()
+    {
+        return new Function<LocalFile, String>()
+        {
+            public String apply(LocalFile file)
+            {
+                return file.getPath().toString();
+            }
+        };
     }
 }

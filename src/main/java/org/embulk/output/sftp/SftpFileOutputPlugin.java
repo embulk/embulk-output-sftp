@@ -11,6 +11,7 @@ import org.embulk.config.TaskSource;
 import org.embulk.spi.Exec;
 import org.embulk.spi.FileOutputPlugin;
 import org.embulk.spi.TransactionalFileOutput;
+import org.embulk.spi.unit.LocalFile;
 import org.slf4j.Logger;
 
 import java.util.List;
@@ -39,7 +40,8 @@ public class SftpFileOutputPlugin
 
         @Config("secret_key_file")
         @ConfigDefault("null")
-        public Optional<String> getSecretKeyFilePath();
+        public Optional<LocalFile> getSecretKeyFilePath();
+        public void setSecretKeyFilePath(Optional<LocalFile> secretKeyFilePath);
 
         @Config("secret_key_passphrase")
         @ConfigDefault("\"\"")
