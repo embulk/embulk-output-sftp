@@ -172,7 +172,6 @@ public class SftpFileOutput
         return Exec.newTaskReport();
     }
 
-
     private void closeCurrentFile()
     {
         if (currentFile == null) {
