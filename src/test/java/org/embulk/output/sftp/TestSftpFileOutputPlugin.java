@@ -2,8 +2,6 @@ package org.embulk.output.sftp;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Optional;
-import com.google.common.base.Splitter;
-import com.google.common.base.Throwables;
 import com.google.common.collect.Lists;
 import com.google.common.io.Resources;
 import org.apache.commons.vfs2.FileSystemException;
@@ -32,7 +30,6 @@ import org.embulk.spi.Schema;
 import org.embulk.spi.TransactionalPageOutput;
 import org.embulk.spi.time.Timestamp;
 import org.hamcrest.CoreMatchers;
-import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -44,26 +41,23 @@ import org.slf4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
 import java.security.PublicKey;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import static com.google.common.io.Files.readLines;
-import static org.embulk.spi.type.Types.*;
+import static org.embulk.spi.type.Types.BOOLEAN;
+import static org.embulk.spi.type.Types.DOUBLE;
+import static org.embulk.spi.type.Types.LONG;
+import static org.embulk.spi.type.Types.STRING;
+import static org.embulk.spi.type.Types.TIMESTAMP;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.hasItem;
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
-//import static org.hamcrest.Matchers.*;
-
+import static org.junit.Assert.assertThat;
 public class TestSftpFileOutputPlugin
 {
     @Rule
@@ -136,7 +130,8 @@ public class TestSftpFileOutputPlugin
     }
 
     @After
-    public void cleanup() throws InterruptedException {
+    public void cleanup() throws InterruptedException
+    {
         try {
             sshServer.stop(true);
         }
@@ -151,17 +146,19 @@ public class TestSftpFileOutputPlugin
         return loader.fromYamlString(yaml);
     }
 
-    private List<String> lsR(List<String> fileNames, Path dir) {
+    private List<String> lsR(List<String> fileNames, Path dir)
+    {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path path : stream) {
-                if(path.toFile().isDirectory()) {
+                if (path.toFile().isDirectory()) {
                     lsR(fileNames, path);
-                } else {
+                }
+                else {
                     fileNames.add(path.toAbsolutePath().toString());
                 }
             }
         }
-        catch(IOException e) {
+        catch (IOException e) {
             logger.debug(e.getMessage(), e);
         }
         return fileNames;
@@ -215,7 +212,7 @@ public class TestSftpFileOutputPlugin
             for (int i = 0; i < lines.size(); i++) {
                 String[] record = lines.get(i).split(",");
                 if (i == 0) {
-                    for (int j = 0; j <= 4 ; j++) {
+                    for (int j = 0; j <= 4; j++) {
                         assertEquals("_c" + j, record[j]);
                     }
                 }
@@ -284,7 +281,6 @@ public class TestSftpFileOutputPlugin
     //   timeout
     //     0 second
 
-
     @Test
     public void testUserPasswordAndPutToUserDirectoryRoot()
     {
@@ -318,7 +314,6 @@ public class TestSftpFileOutputPlugin
         assertRecordsInFile(String.format("%s/%s001.00.txt",
                                           testFolder.getRoot().getAbsolutePath(),
                                           pathPrefix));
-
     }
 
     @Test

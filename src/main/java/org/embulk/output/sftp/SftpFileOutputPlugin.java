@@ -68,7 +68,6 @@ public class SftpFileOutputPlugin
         @Config("sequence_format")
         @ConfigDefault("\"%03d.%02d.\"")
         public String getSequenceFormat();
-
     }
 
     @Override
