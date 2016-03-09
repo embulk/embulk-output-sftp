@@ -216,7 +216,15 @@ public class SftpFileOutput
         int count = 0;
         while (true) {
             try {
-                return manager.resolveFile(sftpUri.toString(), fsOptions);
+                FileObject file = manager.resolveFile(sftpUri.toString(), fsOptions);
+                if (file.getParent().exists()) {
+                    logger.info("parent directory {} exists there", file.getParent());
+                    return file;
+                }
+                else {
+                    logger.info("trying to create parent directory {}", file.getParent());
+                    file.getParent().createFolder();
+                }
             }
             catch (FileSystemException e) {
                 if (++count == maxConnectionRetry) {
