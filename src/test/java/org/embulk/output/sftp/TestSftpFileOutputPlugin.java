@@ -51,6 +51,7 @@ import java.util.List;
 import static com.google.common.io.Files.readLines;
 import static org.embulk.spi.type.Types.BOOLEAN;
 import static org.embulk.spi.type.Types.DOUBLE;
+import static org.embulk.spi.type.Types.JSON;
 import static org.embulk.spi.type.Types.LONG;
 import static org.embulk.spi.type.Types.STRING;
 import static org.embulk.spi.type.Types.TIMESTAMP;
@@ -58,6 +59,9 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.msgpack.value.ValueFactory.newMap;
+import static org.msgpack.value.ValueFactory.newString;
+
 public class TestSftpFileOutputPlugin
 {
     @Rule
@@ -84,6 +88,7 @@ public class TestSftpFileOutputPlugin
             .add("_c2", DOUBLE)
             .add("_c3", STRING)
             .add("_c4", TIMESTAMP)
+            .add("_c5", JSON)
             .build();
 
     @Before
@@ -176,12 +181,12 @@ public class TestSftpFileOutputPlugin
                 boolean committed = false;
                 try {
                     // Result:
-                    // _c0,_c1,_c2,_c3,_c4
-                    // true,2,3.0,45,1970-01-01 00:00:00.678000 +0000
-                    // true,2,3.0,45,1970-01-01 00:00:00.678000 +0000
-                    for (Page page : PageTestUtils.buildPage(runtime.getBufferAllocator(), SCHEMA, true, 2L, 3.0D, "45",
-                                                             Timestamp.ofEpochMilli(678L), true, 2L, 3.0D, "45",
-                                                             Timestamp.ofEpochMilli(678L))) {
+                    // _c0,_c1,_c2,_c3,_c4,_c5
+                    // true,2,3.0,45,1970-01-01 00:00:00.678000 +0000,{\"k\":\"v\"}
+                    // true,2,3.0,45,1970-01-01 00:00:00.678000 +0000,{\"k\":\"v\"}
+                    for (Page page : PageTestUtils.buildPage(runtime.getBufferAllocator(), SCHEMA,
+                                 true, 2L, 3.0D, "45", Timestamp.ofEpochMilli(678L), newMap(newString("k"), newString("v")),
+                                 true, 2L, 3.0D, "45", Timestamp.ofEpochMilli(678L), newMap(newString("k"), newString("v")))) {
                         pageOutput.add(page);
                         if (sleep.isPresent()) {
                             Thread.sleep(sleep.get() * 1000);
@@ -223,6 +228,7 @@ public class TestSftpFileOutputPlugin
                     assertEquals("3.0", record[2]);
                     assertEquals("45", record[3]);
                     assertEquals("1970-01-01 00:00:00.678000 +0000", record[4]);
+                    assertEquals("{\"k\":\"v\"}", record[5]);
                 }
             }
         }
