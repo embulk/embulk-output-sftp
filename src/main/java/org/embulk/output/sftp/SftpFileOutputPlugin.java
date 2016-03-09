@@ -55,6 +55,30 @@ public class SftpFileOutputPlugin
         @ConfigDefault("600") // 10 minutes
         public int getSftpConnectionTimeout();
 
+        @Config("proxy_command")
+        @ConfigDefault("null")
+        public Optional<String> getProxyCommand();
+
+        @Config("proxy_host")
+        @ConfigDefault("null")
+        public Optional<String> getProxyHost();
+
+        @Config("proxy_password")
+        @ConfigDefault("null")
+        public Optional<String> getProxyPassword();
+
+        @Config("proxy_port")
+        @ConfigDefault("22")
+        public int getProxyPort();
+
+        @Config("proxy_user")
+        @ConfigDefault("null")
+        public Optional<String> getProxyUser();
+
+        @Config("proxy_type")
+        @ConfigDefault("null")
+        public Optional<String> getProxyType();
+
         @Config("max_connection_retry")
         @ConfigDefault("5") // 5 times retry to connect sftp server if failed.
         public int getMaxConnectionRetry();

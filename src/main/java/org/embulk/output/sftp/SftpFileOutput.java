@@ -90,6 +90,34 @@ public class SftpFileOutput
                 SftpFileSystemConfigBuilder.getInstance().setIdentityInfo(fsOptions, identityInfo);
                 logger.info("set identity: {}", task.getSecretKeyFilePath().get());
             }
+
+            if (task.getProxyHost().isPresent()) {
+                SftpFileSystemConfigBuilder.getInstance().setProxyHost(fsOptions, task.getProxyHost().get());
+                SftpFileSystemConfigBuilder.getInstance().setProxyPort(fsOptions, task.getProxyPort());
+            }
+
+            if (task.getProxyCommand().isPresent()) {
+                SftpFileSystemConfigBuilder.getInstance().setProxyCommand(fsOptions, task.getProxyCommand().get());
+            }
+
+            if (task.getProxyPassword().isPresent()) {
+                SftpFileSystemConfigBuilder.getInstance().setProxyPassword(fsOptions, task.getProxyPassword().get());
+            }
+
+            if (task.getProxyUser().isPresent()) {
+                SftpFileSystemConfigBuilder.getInstance().setProxyUser(fsOptions, task.getProxyUser().get());
+            }
+
+            if (task.getProxyType().isPresent()) {
+                switch (task.getProxyType().get()) {
+                    case "http":
+                        SftpFileSystemConfigBuilder.getInstance().setProxyType(fsOptions, SftpFileSystemConfigBuilder.PROXY_HTTP);
+                    case "socks":
+                        SftpFileSystemConfigBuilder.getInstance().setProxyType(fsOptions, SftpFileSystemConfigBuilder.PROXY_SOCKS5);
+                    case "stream":
+                        SftpFileSystemConfigBuilder.getInstance().setProxyType(fsOptions, SftpFileSystemConfigBuilder.PROXY_STREAM);
+                }
+            }
         }
         catch (FileSystemException e) {
             logger.error(e.getMessage());
