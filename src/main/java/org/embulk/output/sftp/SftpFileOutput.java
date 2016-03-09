@@ -79,16 +79,40 @@ public class SftpFileOutput
         FileSystemOptions fsOptions = new FileSystemOptions();
 
         try {
-            SftpFileSystemConfigBuilder.getInstance().setUserDirIsRoot(fsOptions, task.getUserDirIsRoot());
-            SftpFileSystemConfigBuilder.getInstance().setTimeout(fsOptions, task.getSftpConnectionTimeout());
-            SftpFileSystemConfigBuilder.getInstance().setStrictHostKeyChecking(fsOptions, "no");
+            SftpFileSystemConfigBuilder builder = SftpFileSystemConfigBuilder.getInstance();
+            builder.setUserDirIsRoot(fsOptions, task.getUserDirIsRoot());
+            builder.setTimeout(fsOptions, task.getSftpConnectionTimeout());
+            builder.setStrictHostKeyChecking(fsOptions, "no");
             if (task.getSecretKeyFilePath().isPresent()) {
                 IdentityInfo identityInfo = new IdentityInfo(
                     new File((task.getSecretKeyFilePath().transform(localFileToPathString()).get())),
                     task.getSecretKeyPassphrase().getBytes()
                 );
-                SftpFileSystemConfigBuilder.getInstance().setIdentityInfo(fsOptions, identityInfo);
+                builder.setIdentityInfo(fsOptions, identityInfo);
                 logger.info("set identity: {}", task.getSecretKeyFilePath().get());
+            }
+
+            if (task.getProxy().isPresent()) {
+                ProxyTask proxy = task.getProxy().get();
+
+                ProxyTask.ProxyType.setProxyType(builder, fsOptions, proxy.getType());
+
+                if (proxy.getHost().isPresent()) {
+                    builder.setProxyHost(fsOptions, proxy.getHost().get());
+                    builder.setProxyPort(fsOptions, proxy.getPort());
+                }
+
+                if (proxy.getUser().isPresent()) {
+                    builder.setProxyUser(fsOptions, proxy.getUser().get());
+                }
+
+                if (proxy.getPassword().isPresent()) {
+                    builder.setProxyPassword(fsOptions, proxy.getPassword().get());
+                }
+
+                if (proxy.getCommand().isPresent()) {
+                    builder.setProxyCommand(fsOptions, proxy.getCommand().get());
+                }
             }
         }
         catch (FileSystemException e) {

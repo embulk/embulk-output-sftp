@@ -16,6 +16,7 @@ import org.apache.sshd.server.scp.ScpCommandFactory;
 import org.apache.sshd.server.session.ServerSession;
 import org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory;
 import org.embulk.EmbulkTestRuntime;
+import org.embulk.config.ConfigException;
 import org.embulk.config.ConfigLoader;
 import org.embulk.config.ConfigSource;
 import org.embulk.config.TaskReport;
@@ -36,6 +37,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
+import org.littleshoot.proxy.HttpProxyServer;
+import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -78,6 +81,8 @@ public class TestSftpFileOutputPlugin
     private SshServer sshServer;
     private static final String HOST = "127.0.0.1";
     private static final int PORT = 20022;
+    private static final String PROXY_HOST = "127.0.0.1";
+    private static final int PROXY_PORT = 8080;
     private static final String USERNAME = "username";
     private static final String PASSWORD = "password";
     private static final String SECRET_KEY_FILE = Resources.getResource("id_rsa").getPath();
@@ -99,13 +104,18 @@ public class TestSftpFileOutputPlugin
         SftpFileOutputPlugin sftpFileOutputPlugin = new SftpFileOutputPlugin();
         runner = new FileOutputRunner(sftpFileOutputPlugin);
 
+        sshServer = createSshServer(HOST, PORT, USERNAME, PASSWORD);
+    }
+
+    private SshServer createSshServer(String host, int port, final String sshUsername, final String sshPassword)
+    {
         // setup a mock sftp server
-        sshServer = SshServer.setUpDefaultServer();
+        SshServer sshServer = SshServer.setUpDefaultServer();
         VirtualFileSystemFactory fsFactory = new VirtualFileSystemFactory();
-        fsFactory.setUserHomeDir(USERNAME, testFolder.getRoot().toPath());
+        fsFactory.setUserHomeDir(sshUsername, testFolder.getRoot().toPath());
         sshServer.setFileSystemFactory(fsFactory);
-        sshServer.setHost(HOST);
-        sshServer.setPort(PORT);
+        sshServer.setHost(host);
+        sshServer.setPort(port);
         sshServer.setSubsystemFactories(Collections.<NamedFactory<Command>>singletonList(new SftpSubsystemFactory()));
         sshServer.setCommandFactory(new ScpCommandFactory());
         sshServer.setKeyPairProvider(new SimpleGeneratorHostKeyProvider());
@@ -114,7 +124,7 @@ public class TestSftpFileOutputPlugin
             @Override
             public boolean authenticate(final String username, final String password, final ServerSession session)
             {
-                return USERNAME.contentEquals(username) && PASSWORD.contentEquals(password);
+                return sshUsername.contentEquals(username) && sshPassword.contentEquals(password);
             }
         });
         sshServer.setPublickeyAuthenticator(new PublickeyAuthenticator()
@@ -132,6 +142,14 @@ public class TestSftpFileOutputPlugin
         catch (IOException e) {
             logger.debug(e.getMessage(), e);
         }
+        return sshServer;
+    }
+
+    private HttpProxyServer createProxyServer(int port)
+    {
+        return DefaultHttpProxyServer.bootstrap()
+                .withPort(port)
+                .start();
     }
 
     @After
@@ -275,6 +293,49 @@ public class TestSftpFileOutputPlugin
         assertEquals(pathPrefix, task.getPathPrefix());
         assertEquals("txt", task.getFileNameExtension());
         assertEquals("%03d.%02d.", task.getSequenceFormat());
+        assertEquals(Optional.absent(), task.getProxy());
+    }
+
+    @Test
+    public void testConfigValuesIncludingProxy()
+    {
+        // setting embulk config
+        final String pathPrefix = "/test/testUserPassword";
+        String configYaml = "" +
+                "type: sftp\n" +
+                "host: " + HOST + "\n" +
+                "user: " + USERNAME + "\n" +
+                "path_prefix: " + pathPrefix + "\n" +
+                "file_ext: txt\n" +
+                "proxy: \n" +
+                "  type: http\n" +
+                "  host: proxy_host\n" +
+                "  port: 80 \n" +
+                "  user: proxy_user\n" +
+                "  password: proxy_pass\n" +
+                "  command: proxy_command\n" +
+                "formatter:\n" +
+                "  type: csv\n" +
+                "  newline: CRLF\n" +
+                "  newline_in_field: LF\n" +
+                "  header_line: true\n" +
+                "  charset: UTF-8\n" +
+                "  quote_policy: NONE\n" +
+                "  quote: \"\\\"\"\n" +
+                "  escape: \"\\\\\"\n" +
+                "  null_string: \"\"\n" +
+                "  default_timezone: 'UTC'";
+
+        ConfigSource config = getConfigFromYaml(configYaml);
+        PluginTask task = config.loadConfig(PluginTask.class);
+
+        ProxyTask proxy = task.getProxy().get();
+        assertEquals("proxy_command", proxy.getCommand().get());
+        assertEquals("proxy_host", proxy.getHost().get());
+        assertEquals("proxy_user", proxy.getUser().get());
+        assertEquals("proxy_pass", proxy.getPassword().get());
+        assertEquals(80, proxy.getPort());
+        assertEquals(ProxyTask.ProxyType.HTTP, proxy.getType());
     }
 
     // Cases
@@ -360,6 +421,60 @@ public class TestSftpFileOutputPlugin
     }
 
     @Test
+    public void testUserSecretKeyFileWithProxy()
+    {
+        HttpProxyServer proxyServer = null;
+        try {
+             proxyServer = createProxyServer(PROXY_PORT);
+
+            // setting embulk config
+            final String pathPrefix = "/test/testUserPassword";
+            String configYaml = "" +
+                    "type: sftp\n" +
+                    "host: " + HOST + "\n" +
+                    "port: " + PORT + "\n" +
+                    "user: " + USERNAME + "\n" +
+                    "secret_key_file: " + SECRET_KEY_FILE + "\n" +
+                    "secret_key_passphrase: " + SECRET_KEY_PASSPHRASE + "\n" +
+                    "path_prefix: " + testFolder.getRoot().getAbsolutePath() + pathPrefix + "\n" +
+                    "file_ext: txt\n" +
+                    "proxy: \n" +
+                    "  type: http\n" +
+                    "  host: " + PROXY_HOST + "\n" +
+                    "  port: " + PROXY_PORT + " \n" +
+                    "  user: " + USERNAME + "\n" +
+                    "  password: " + PASSWORD + "\n" +
+                    "  command: \n" +
+                    "formatter:\n" +
+                    "  type: csv\n" +
+                    "  newline: CRLF\n" +
+                    "  newline_in_field: LF\n" +
+                    "  header_line: true\n" +
+                    "  charset: UTF-8\n" +
+                    "  quote_policy: NONE\n" +
+                    "  quote: \"\\\"\"\n" +
+                    "  escape: \"\\\\\"\n" +
+                    "  null_string: \"\"\n" +
+                    "  default_timezone: 'UTC'";
+
+            // runner.transaction -> ...
+            run(configYaml, Optional.<Integer>absent());
+
+            List<String> fileList = lsR(Lists.<String>newArrayList(), Paths.get(testFolder.getRoot().getAbsolutePath()));
+            assertThat(fileList, hasItem(containsString(pathPrefix + "001.00.txt")));
+
+            assertRecordsInFile(String.format("%s/%s001.00.txt",
+                    testFolder.getRoot().getAbsolutePath(),
+                    pathPrefix));
+        }
+        finally {
+            if (proxyServer != null) {
+                proxyServer.stop();
+            }
+        }
+    }
+
+    @Test
     public void testTimeout()
     {
         // setting embulk config
@@ -393,5 +508,31 @@ public class TestSftpFileOutputPlugin
 
         // runner.transaction -> ...
         run(configYaml, Optional.of(60)); // sleep 1 minute while processing
+    }
+
+    @Test
+    public void testProxyType()
+    {
+        // test valueOf()
+        assertEquals("http", ProxyTask.ProxyType.valueOf("HTTP").toString());
+        assertEquals("socks", ProxyTask.ProxyType.valueOf("SOCKS").toString());
+        assertEquals("stream", ProxyTask.ProxyType.valueOf("STREAM").toString());
+        try {
+            ProxyTask.ProxyType.valueOf("non-existing-type");
+        }
+        catch (Exception e) {
+            assertEquals(IllegalArgumentException.class, e.getClass());
+        }
+
+        // test fromString
+        assertEquals(ProxyTask.ProxyType.HTTP, ProxyTask.ProxyType.fromString("http"));
+        assertEquals(ProxyTask.ProxyType.SOCKS, ProxyTask.ProxyType.fromString("socks"));
+        assertEquals(ProxyTask.ProxyType.STREAM, ProxyTask.ProxyType.fromString("stream"));
+        try {
+            ProxyTask.ProxyType.fromString("non-existing-type");
+        }
+        catch (Exception e) {
+            assertEquals(ConfigException.class, e.getClass());
+        }
     }
 }
