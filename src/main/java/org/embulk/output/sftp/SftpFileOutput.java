@@ -2,6 +2,7 @@ package org.embulk.output.sftp;
 
 import com.google.common.base.Function;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableMap;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.FileSystemOptions;
@@ -41,6 +42,7 @@ public class SftpFileOutput
     private final String pathPrefix;
     private final String sequenceFormat;
     private final String fileNameExtension;
+    private final RetryHelper retryHelper;
 
     private final int taskIndex;
     private int fileIndex = 0;
@@ -135,6 +137,7 @@ public class SftpFileOutput
         this.sequenceFormat = task.getSequenceFormat();
         this.fileNameExtension = task.getFileNameExtension();
         this.taskIndex = taskIndex;
+        this.retryHelper = new RetryHelper.Builder(task.getMaxConnectionRetry()).build();
     }
 
     @Override
@@ -144,7 +147,7 @@ public class SftpFileOutput
 
         try {
             currentFile = newSftpFile(getSftpFileUri(getOutputFilePath()));
-            currentFileOutputStream = currentFile.getContent().getOutputStream();
+            currentFileOutputStream = createSftpFileOutputStream(currentFile);
             logger.info("new sftp file: {}", currentFile.getPublicURIString());
         }
         catch (FileSystemException e) {
@@ -234,12 +237,14 @@ public class SftpFileOutput
         return pathPrefix + String.format(sequenceFormat, taskIndex, fileIndex) + fileNameExtension;
     }
 
-    private FileObject newSftpFile(URI sftpUri)
+    private FileObject newSftpFile(final URI sftpUri)
             throws FileSystemException
     {
-        int count = 0;
-        while (true) {
-            try {
+        return retryHelper.invokeWithExponentialBackoff(new RetryHelper.Invoker<FileObject>() {
+            @Override
+            public FileObject invoke()
+                    throws FileSystemException
+            {
                 FileObject file = manager.resolveFile(sftpUri.toString(), fsOptions);
                 if (file.getParent().exists()) {
                     logger.info("parent directory {} exists there", file.getParent());
@@ -248,26 +253,23 @@ public class SftpFileOutput
                 else {
                     logger.info("trying to create parent directory {}", file.getParent());
                     file.getParent().createFolder();
+                    throw new FileSystemException("parent directory does not exist,");
                 }
             }
-            catch (FileSystemException e) {
-                if (++count == maxConnectionRetry) {
-                    throw e;
-                }
-                logger.warn("failed to connect sftp server: " + e.getMessage(), e);
+        });
+    }
 
-                try {
-                    long sleepTime = ((long) Math.pow(2, count) * 1000);
-                    logger.warn("sleep in next connection retry: {} milliseconds", sleepTime);
-                    Thread.sleep(sleepTime); // milliseconds
-                }
-                catch (InterruptedException e1) {
-                    // Ignore this exception because this exception is just about `sleep`.
-                    logger.warn(e1.getMessage(), e1);
-                }
-                logger.warn("retry to connect sftp server: " + count + " times");
+    private OutputStream createSftpFileOutputStream(final FileObject fileObject)
+            throws FileSystemException
+    {
+        return retryHelper.invokeWithExponentialBackoff(new RetryHelper.Invoker<OutputStream>() {
+            @Override
+            public OutputStream invoke()
+                    throws FileSystemException
+            {
+                return fileObject.getContent().getOutputStream();
             }
-        }
+        });
     }
 
     private Function<LocalFile, String> localFileToPathString()
@@ -279,5 +281,91 @@ public class SftpFileOutput
                 return file.getPath().toString();
             }
         };
+    }
+
+    private static class RetryHelper
+    {
+        private static final Logger logger = Exec.getLogger(RetryHelper.class);
+        private final int baseSeconds;
+        private final int maxRetry;
+
+        public static class Builder
+        {
+            private int maxRetry = 1;
+            private int baseSeconds = 2;
+
+            Builder(int maxRetry)
+            {
+                this();
+                this.maxRetry(maxRetry);
+            }
+
+            Builder()
+            {
+            }
+
+            public Builder maxRetry(int maxRetry)
+            {
+                this.maxRetry = maxRetry;
+                return this;
+            }
+
+            public Builder baseSeconds(int baseSeconds)
+            {
+                this.baseSeconds = baseSeconds;
+                return this;
+            }
+
+            public RetryHelper build()
+            {
+                return new RetryHelper(baseSeconds, maxRetry);
+            }
+        }
+
+        private RetryHelper(int baseSeconds, int maxRetry)
+        {
+            this.baseSeconds = baseSeconds;
+            this.maxRetry = maxRetry;
+        }
+
+        public interface Invoker<T> {
+            T invoke() throws FileSystemException;
+        }
+
+        public  <T> T invokeWithExponentialBackoff(Invoker<T> i)
+                throws FileSystemException
+        {
+            int count = 0;
+            while (true) {
+                try {
+                    return i.invoke();
+                }
+                catch (FileSystemException e) {
+                    if (++count == maxRetry) {
+                        throw e;
+                    }
+                    logger.warn("failed to connect sftp server: " + e.getMessage(), e);
+                    sleep(getSleepTime(count));
+                    logger.warn("retry to connect sftp server: " + count + " times");
+                }
+            }
+        }
+
+        private long getSleepTime(int count)
+        {
+            return  ((long) Math.pow(baseSeconds, count) * 1000);
+        }
+
+        private void sleep(long milliseconds)
+        {
+            try {
+                logger.warn("sleep in next connection retry: {} milliseconds", milliseconds);
+                Thread.sleep(milliseconds); // milliseconds
+            }
+            catch (InterruptedException e) {
+                // Ignore this exception because this exception is just about `sleep`.
+                logger.warn(e.getMessage(), e);
+            }
+        }
     }
 }
