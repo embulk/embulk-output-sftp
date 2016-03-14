@@ -9,7 +9,7 @@ import org.slf4j.Logger;
 public class Retriable
 {
     private static final Logger logger = Exec.getLogger(Retriable.class);
-    private final int baseSeconds;
+    private final int baseIntervalSeconds;
     private final int maxRetry;
 
     public static class RetriableException
@@ -37,8 +37,8 @@ public class Retriable
 
     public static class Builder
     {
-        private int maxRetry = 5;    // default value
-        private int baseSeconds = 2; // default value
+        private int maxRetry = 7;    // default value
+        private int baseIntervalSeconds = 2; // default value
 
         public Builder(int maxRetry)
         {
@@ -58,19 +58,19 @@ public class Retriable
 
         public Builder baseSeconds(int baseSeconds)
         {
-            this.baseSeconds = baseSeconds;
+            this.baseIntervalSeconds = baseSeconds;
             return this;
         }
 
         public Retriable build()
         {
-            return new Retriable(baseSeconds, maxRetry);
+            return new Retriable(baseIntervalSeconds, maxRetry);
         }
     }
 
-    private Retriable(int baseSeconds, int maxRetry)
+    private Retriable(int baseIntervalSeconds, int maxRetry)
     {
-        this.baseSeconds = baseSeconds;
+        this.baseIntervalSeconds = baseIntervalSeconds;
         this.maxRetry = maxRetry;
     }
 
@@ -78,13 +78,13 @@ public class Retriable
         T call() throws RetriableException;
     }
 
-    public  <T> T callWithExponentialBackoff(Callable<T> i)
+    public  <T> T callWithExponentialBackoff(Callable<T> callable)
             throws MaxRetriesExceededException
     {
         int count = 0;
         while (true) {
             try {
-                return i.call();
+                return callable.call();
             }
             catch (RetriableException e) {
                 if (count++ >= maxRetry) {
@@ -92,14 +92,9 @@ public class Retriable
                 }
                 logger.warn("catch retriable failure: " + e.getMessage(), e);
             }
-            sleep(getSleepTime(count));
+            sleep((long) Math.pow(baseIntervalSeconds, count) * 1000);
             logger.warn("retry to connect sftp server: " + count + " times");
         }
-    }
-
-    private long getSleepTime(int count)
-    {
-        return  ((long) Math.pow(baseSeconds, count) * 1000);
     }
 
     private void sleep(long milliseconds)
