@@ -2,7 +2,6 @@ package org.embulk.output.sftp;
 
 import com.google.common.base.Function;
 import com.google.common.base.Throwables;
-import com.google.common.collect.ImmutableMap;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.FileSystemOptions;
@@ -11,6 +10,7 @@ import org.apache.commons.vfs2.provider.sftp.IdentityInfo;
 import org.apache.commons.vfs2.provider.sftp.SftpFileSystemConfigBuilder;
 import org.embulk.config.ConfigException;
 import org.embulk.config.TaskReport;
+import org.embulk.output.sftp.util.Retriable;
 import org.embulk.spi.Buffer;
 import org.embulk.spi.Exec;
 import org.embulk.spi.FileOutput;
@@ -25,6 +25,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 
 import static org.embulk.output.sftp.SftpFileOutputPlugin.PluginTask;
+import static org.embulk.output.sftp.util.Retriable.*;
 
 /**
  * Created by takahiro.nakayama on 10/20/15.
@@ -42,7 +43,7 @@ public class SftpFileOutput
     private final String pathPrefix;
     private final String sequenceFormat;
     private final String fileNameExtension;
-    private final RetryHelper retryHelper;
+    private final Retriable retriable;
 
     private final int taskIndex;
     private int fileIndex = 0;
@@ -137,7 +138,7 @@ public class SftpFileOutput
         this.sequenceFormat = task.getSequenceFormat();
         this.fileNameExtension = task.getFileNameExtension();
         this.taskIndex = taskIndex;
-        this.retryHelper = new RetryHelper.Builder(task.getMaxConnectionRetry()).build();
+        this.retriable = new Builder(task.getMaxConnectionRetry()).build();
     }
 
     @Override
@@ -150,7 +151,7 @@ public class SftpFileOutput
             currentFileOutputStream = createSftpFileOutputStream(currentFile);
             logger.info("new sftp file: {}", currentFile.getPublicURIString());
         }
-        catch (FileSystemException e) {
+        catch (MaxRetriesExceededException e) {
             logger.error(e.getMessage());
             Throwables.propagate(e);
         }
@@ -238,36 +239,46 @@ public class SftpFileOutput
     }
 
     private FileObject newSftpFile(final URI sftpUri)
-            throws FileSystemException
+            throws MaxRetriesExceededException
     {
-        return retryHelper.invokeWithExponentialBackoff(new RetryHelper.Invoker<FileObject>() {
+        return retriable.callWithExponentialBackoff(new Retriable.Callable<FileObject>() {
             @Override
-            public FileObject invoke()
-                    throws FileSystemException
+            public FileObject call()
+                    throws RetriableException
             {
-                FileObject file = manager.resolveFile(sftpUri.toString(), fsOptions);
-                if (file.getParent().exists()) {
-                    logger.info("parent directory {} exists there", file.getParent());
-                    return file;
+                try {
+                    FileObject file = manager.resolveFile(sftpUri.toString(), fsOptions);
+                    if (file.getParent().exists()) {
+                        logger.info("parent directory {} exists there", file.getParent());
+                        return file;
+                    }
+                    else {
+                        logger.info("trying to create parent directory {}", file.getParent());
+                        file.getParent().createFolder();
+                        throw new RetriableException("parent directory does not exist,");
+                    }
                 }
-                else {
-                    logger.info("trying to create parent directory {}", file.getParent());
-                    file.getParent().createFolder();
-                    throw new FileSystemException("parent directory does not exist,");
+                catch (FileSystemException e) {
+                    throw new RetriableException(e);
                 }
             }
         });
     }
 
     private OutputStream createSftpFileOutputStream(final FileObject fileObject)
-            throws FileSystemException
+            throws MaxRetriesExceededException
     {
-        return retryHelper.invokeWithExponentialBackoff(new RetryHelper.Invoker<OutputStream>() {
+        return retriable.callWithExponentialBackoff(new Retriable.Callable<OutputStream>() {
             @Override
-            public OutputStream invoke()
-                    throws FileSystemException
+            public OutputStream call()
+                    throws RetriableException
             {
-                return fileObject.getContent().getOutputStream();
+                try {
+                    return fileObject.getContent().getOutputStream();
+                }
+                catch (FileSystemException e) {
+                    throw new RetriableException(e);
+                }
             }
         });
     }
@@ -281,91 +292,5 @@ public class SftpFileOutput
                 return file.getPath().toString();
             }
         };
-    }
-
-    private static class RetryHelper
-    {
-        private static final Logger logger = Exec.getLogger(RetryHelper.class);
-        private final int baseSeconds;
-        private final int maxRetry;
-
-        public static class Builder
-        {
-            private int maxRetry = 1;
-            private int baseSeconds = 2;
-
-            Builder(int maxRetry)
-            {
-                this();
-                this.maxRetry(maxRetry);
-            }
-
-            Builder()
-            {
-            }
-
-            public Builder maxRetry(int maxRetry)
-            {
-                this.maxRetry = maxRetry;
-                return this;
-            }
-
-            public Builder baseSeconds(int baseSeconds)
-            {
-                this.baseSeconds = baseSeconds;
-                return this;
-            }
-
-            public RetryHelper build()
-            {
-                return new RetryHelper(baseSeconds, maxRetry);
-            }
-        }
-
-        private RetryHelper(int baseSeconds, int maxRetry)
-        {
-            this.baseSeconds = baseSeconds;
-            this.maxRetry = maxRetry;
-        }
-
-        public interface Invoker<T> {
-            T invoke() throws FileSystemException;
-        }
-
-        public  <T> T invokeWithExponentialBackoff(Invoker<T> i)
-                throws FileSystemException
-        {
-            int count = 0;
-            while (true) {
-                try {
-                    return i.invoke();
-                }
-                catch (FileSystemException e) {
-                    if (++count == maxRetry) {
-                        throw e;
-                    }
-                    logger.warn("failed to connect sftp server: " + e.getMessage(), e);
-                    sleep(getSleepTime(count));
-                    logger.warn("retry to connect sftp server: " + count + " times");
-                }
-            }
-        }
-
-        private long getSleepTime(int count)
-        {
-            return  ((long) Math.pow(baseSeconds, count) * 1000);
-        }
-
-        private void sleep(long milliseconds)
-        {
-            try {
-                logger.warn("sleep in next connection retry: {} milliseconds", milliseconds);
-                Thread.sleep(milliseconds); // milliseconds
-            }
-            catch (InterruptedException e) {
-                // Ignore this exception because this exception is just about `sleep`.
-                logger.warn(e.getMessage(), e);
-            }
-        }
     }
 }
