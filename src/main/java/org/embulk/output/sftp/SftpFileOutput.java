@@ -172,7 +172,7 @@ public class SftpFileOutput
             try {
                 withConnectionRetry(retriable);
             }
-            } catch (Exception e) {
+            catch (Exception e) {
                 throw (IOException)e;
             }
         }
@@ -220,7 +220,8 @@ public class SftpFileOutput
             currentFile.getContent().close();
             currentFile.close();
         }
-        catch (IOException e) {
+        catch (FileSystemException e) {
+            IOException e) {
             logger.error(e.getMessage());
             Throwables.propagate(e);
         }
@@ -263,7 +264,8 @@ public class SftpFileOutput
         while (true) {
             try {
                 return op.execute();
-            } catch(final Exception e) {
+            }
+            catch(final Exception e) {
                 if (++count > maxConnectionRetry) {
                     throw e;
                 }
@@ -302,7 +304,8 @@ public class SftpFileOutput
         };
         try {
             return withConnectionRetry(retriable);
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             throw (FileSystemException)e;
         }
     }
@@ -318,7 +321,8 @@ public class SftpFileOutput
         };
         try {
             return withConnectionRetry(retriable);
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             throw (FileSystemException)e;
         }
     }
