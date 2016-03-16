@@ -134,3 +134,4 @@ This plugin uses "org.apache.commons:commons-vfs" and the library uses the logge
 ## Contributors
 - Satoshi Akama (@sakama)
 - Rudolph Miller (@Rudolph-Miller)
+- Naotoshi Seo (@sonots)
