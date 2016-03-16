@@ -17,6 +17,7 @@ import org.embulk.spi.TransactionalFileOutput;
 import org.embulk.spi.unit.LocalFile;
 import org.slf4j.Logger;
 
+import java.lang.Void;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -154,7 +155,7 @@ public class SftpFileOutput
     }
 
     @Override
-    public void add(Buffer buffer)
+    public void add(final Buffer buffer)
     {
         if (currentFile == null) {
             throw new IllegalStateException("nextFile() must be called before poll()");
@@ -171,7 +172,7 @@ public class SftpFileOutput
             try {
                 withConnectionRetry(retriable);
             }
-            catch (Exception e) {
+            } catch (Exception e) {
                 throw (IOException)e;
             }
         }
@@ -254,15 +255,15 @@ public class SftpFileOutput
          * @return any return value from the operation
          * @throws Exception
          */
-        public T execute() throws FileSystemException;
+        public T execute() throws Exception;
     }
 
-    private <T> T withConnectionRetry( final Retriable<T> op ) throws FileSystemException {
+    private <T> T withConnectionRetry( final Retriable<T> op ) throws Exception {
         int count = 0;
         while (true) {
             try {
                 return op.execute();
-            } catch(final FileSystemException e) {
+            } catch(final Exception e) {
                 if (++count > maxConnectionRetry) {
                     throw e;
                 }
@@ -299,7 +300,11 @@ public class SftpFileOutput
                 return file;
             }
         };
-        return withConnectionRetry(retriable);
+        try {
+            return withConnectionRetry(retriable);
+        } catch (Exception e) {
+            throw (FileSystemException)e;
+        }
     }
 
     private OutputStream newSftpOutputStream(final FileObject file)
@@ -311,7 +316,11 @@ public class SftpFileOutput
                 return file.getContent().getOutputStream();
             }
         };
-        return withConnectionRetry(retriable);
+        try {
+            return withConnectionRetry(retriable);
+        } catch (Exception e) {
+            throw (FileSystemException)e;
+        }
     }
 
     private Function<LocalFile, String> localFileToPathString()
