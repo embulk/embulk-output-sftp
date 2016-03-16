@@ -103,10 +103,21 @@ out:
 ```
 
 ## Run Example
-replace settings in `example/sample.yml` before running.
 
 ```
 $ ./gradlew classpath
+```
+
+Use `vagrant` to start a remote sshd server:
+
+```
+$ vagrant up
+```
+
+Run:
+
+
+```
 $ embulk run -Ilib example/sample.yml
 ```
 

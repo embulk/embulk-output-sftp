@@ -16,11 +16,11 @@ in:
 out:
   type: sftp
   host: 127.0.0.1
-  port: 22
-  user: your_name
-  password: your_password
-  secret_key_file: your_secret_key_file
-  secret_key_passphrase: your_secret_key_passphrase
+  port: 2210
+  user: vagrant
+  # password:
+  secret_key_file: {{ env.PWD }}/.vagrant/machines/vagrant-centos/virtualbox/private_key
+  # secret_key_passphrase:
   user_directory_is_root: true
   path_prefix: /tmp/embulk_output_sftp/data
   file_ext: .tsv
@@ -37,3 +37,4 @@ out:
       escape: "\\"
       null_string: ""
       default_timezone: 'UTC'
+
