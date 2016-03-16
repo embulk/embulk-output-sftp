@@ -22,6 +22,7 @@ import org.embulk.config.ConfigSource;
 import org.embulk.config.TaskReport;
 import org.embulk.config.TaskSource;
 import org.embulk.output.sftp.SftpFileOutputPlugin.PluginTask;
+import org.embulk.output.sftp.util.Retriable;
 import org.embulk.spi.Exec;
 import org.embulk.spi.FileOutputRunner;
 import org.embulk.spi.OutputPlugin.Control;
@@ -503,7 +504,7 @@ public class TestSftpFileOutputPlugin
 
         // exception
         exception.expect(RuntimeException.class);
-        exception.expectCause(CoreMatchers.<Throwable>instanceOf(FileSystemException.class));
+        exception.expectCause(CoreMatchers.<Throwable>instanceOf(Retriable.MaxRetriesExceededException.class));
         exception.expectMessage("Could not connect to SFTP server");
 
         // runner.transaction -> ...
