@@ -144,7 +144,7 @@ public class SftpFileOutput
 
         try {
             currentFile = newSftpFile(getSftpFileUri(getOutputFilePath()));
-            currentFileOutputStream = currentFile.getContent().getOutputStream();
+            currentFileOutputStream = newSftpOutputStream(currentFile);
             logger.info("new sftp file: {}", currentFile.getPublicURIString());
         }
         catch (FileSystemException e) {
@@ -161,7 +161,19 @@ public class SftpFileOutput
         }
 
         try {
-            currentFileOutputStream.write(buffer.array(), buffer.offset(), buffer.limit());
+            Retriable<Void> retriable = new Retriable<Void>() {
+                public Void execute() throws IOException
+                {
+                    currentFileOutputStream.write(buffer.array(), buffer.offset(), buffer.limit());
+                    return null;
+                }
+            };
+            try {
+                withConnectionRetry(retriable);
+            }
+            catch (Exception e) {
+                throw (IOException)e;
+            }
         }
         catch (IOException e) {
             logger.error(e.getMessage());
@@ -234,24 +246,24 @@ public class SftpFileOutput
         return pathPrefix + String.format(sequenceFormat, taskIndex, fileIndex) + fileNameExtension;
     }
 
-    private FileObject newSftpFile(URI sftpUri)
-            throws FileSystemException
+    interface Retriable<T>
     {
+        /**
+         * Execute the operation with the given (or null) return value.
+         * 
+         * @return any return value from the operation
+         * @throws Exception
+         */
+        public T execute() throws FileSystemException;
+    }
+
+    private <T> T withConnectionRetry( final Retriable<T> op ) throws FileSystemException {
         int count = 0;
         while (true) {
             try {
-                FileObject file = manager.resolveFile(sftpUri.toString(), fsOptions);
-                if (file.getParent().exists()) {
-                    logger.info("parent directory {} exists there", file.getParent());
-                    return file;
-                }
-                else {
-                    logger.info("trying to create parent directory {}", file.getParent());
-                    file.getParent().createFolder();
-                }
-            }
-            catch (FileSystemException e) {
-                if (++count == maxConnectionRetry) {
+                return op.execute();
+            } catch(final FileSystemException e) {
+                if (++count > maxConnectionRetry) {
                     throw e;
                 }
                 logger.warn("failed to connect sftp server: " + e.getMessage(), e);
@@ -268,6 +280,38 @@ public class SftpFileOutput
                 logger.warn("retry to connect sftp server: " + count + " times");
             }
         }
+    }
+
+    private FileObject newSftpFile(final URI sftpUri)
+            throws FileSystemException
+    {
+        Retriable<FileObject> retriable = new Retriable<FileObject>() {
+            public FileObject execute() throws FileSystemException
+            {
+                FileObject file = manager.resolveFile(sftpUri.toString(), fsOptions);
+                if (file.getParent().exists()) {
+                    logger.info("parent directory {} exists there", file.getParent());
+                }
+                else {
+                    logger.info("trying to create parent directory {}", file.getParent());
+                    file.getParent().createFolder();
+                }
+                return file;
+            }
+        };
+        return withConnectionRetry(retriable);
+    }
+
+    private OutputStream newSftpOutputStream(final FileObject file)
+            throws FileSystemException
+    {
+        Retriable<OutputStream> retriable = new Retriable<OutputStream>() {
+            public OutputStream execute() throws FileSystemException
+            {
+                return file.getContent().getOutputStream();
+            }
+        };
+        return withConnectionRetry(retriable);
     }
 
     private Function<LocalFile, String> localFileToPathString()
