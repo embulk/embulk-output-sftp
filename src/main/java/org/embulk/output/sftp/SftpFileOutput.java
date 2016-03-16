@@ -217,19 +217,21 @@ public class SftpFileOutput
 
         try {
             currentFileOutputStream.close();
-            currentFile.getContent().close();
+        }
+        catch (IOException e) {
+            logger.info(e.getMessage());
+        }
+
+        try {
             currentFile.close();
         }
         catch (FileSystemException e) {
-            IOException e) {
-            logger.error(e.getMessage());
-            Throwables.propagate(e);
+            logger.warn(e.getMessage());
         }
-        finally {
-            fileIndex++;
-            currentFile = null;
-            currentFileOutputStream = null;
-        }
+
+        fileIndex++;
+        currentFile = null;
+        currentFileOutputStream = null;
     }
 
     private URI getSftpFileUri(String remoteFilePath)
