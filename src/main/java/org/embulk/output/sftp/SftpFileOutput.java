@@ -17,6 +17,7 @@ import org.embulk.spi.TransactionalFileOutput;
 import org.embulk.spi.unit.LocalFile;
 import org.slf4j.Logger;
 
+import java.lang.Void;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -144,7 +145,7 @@ public class SftpFileOutput
 
         try {
             currentFile = newSftpFile(getSftpFileUri(getOutputFilePath()));
-            currentFileOutputStream = currentFile.getContent().getOutputStream();
+            currentFileOutputStream = newSftpOutputStream(currentFile);
             logger.info("new sftp file: {}", currentFile.getPublicURIString());
         }
         catch (FileSystemException e) {
@@ -154,14 +155,26 @@ public class SftpFileOutput
     }
 
     @Override
-    public void add(Buffer buffer)
+    public void add(final Buffer buffer)
     {
         if (currentFile == null) {
             throw new IllegalStateException("nextFile() must be called before poll()");
         }
 
         try {
-            currentFileOutputStream.write(buffer.array(), buffer.offset(), buffer.limit());
+            Retriable<Void> retriable = new Retriable<Void>() {
+                public Void execute() throws IOException
+                {
+                    currentFileOutputStream.write(buffer.array(), buffer.offset(), buffer.limit());
+                    return null;
+                }
+            };
+            try {
+                withConnectionRetry(retriable);
+            }
+            catch (Exception e) {
+                throw (IOException)e;
+            }
         }
         catch (IOException e) {
             logger.error(e.getMessage());
@@ -204,18 +217,21 @@ public class SftpFileOutput
 
         try {
             currentFileOutputStream.close();
-            currentFile.getContent().close();
-            currentFile.close();
         }
         catch (IOException e) {
-            logger.error(e.getMessage());
-            Throwables.propagate(e);
+            logger.info(e.getMessage());
         }
-        finally {
-            fileIndex++;
-            currentFile = null;
-            currentFileOutputStream = null;
+
+        try {
+            currentFile.close();
         }
+        catch (FileSystemException e) {
+            logger.warn(e.getMessage());
+        }
+
+        fileIndex++;
+        currentFile = null;
+        currentFileOutputStream = null;
     }
 
     private URI getSftpFileUri(String remoteFilePath)
@@ -234,24 +250,25 @@ public class SftpFileOutput
         return pathPrefix + String.format(sequenceFormat, taskIndex, fileIndex) + fileNameExtension;
     }
 
-    private FileObject newSftpFile(URI sftpUri)
-            throws FileSystemException
+    interface Retriable<T>
     {
+        /**
+         * Execute the operation with the given (or null) return value.
+         * 
+         * @return any return value from the operation
+         * @throws Exception
+         */
+        public T execute() throws Exception;
+    }
+
+    private <T> T withConnectionRetry( final Retriable<T> op ) throws Exception {
         int count = 0;
         while (true) {
             try {
-                FileObject file = manager.resolveFile(sftpUri.toString(), fsOptions);
-                if (file.getParent().exists()) {
-                    logger.info("parent directory {} exists there", file.getParent());
-                    return file;
-                }
-                else {
-                    logger.info("trying to create parent directory {}", file.getParent());
-                    file.getParent().createFolder();
-                }
+                return op.execute();
             }
-            catch (FileSystemException e) {
-                if (++count == maxConnectionRetry) {
+            catch(final Exception e) {
+                if (++count > maxConnectionRetry) {
                     throw e;
                 }
                 logger.warn("failed to connect sftp server: " + e.getMessage(), e);
@@ -267,6 +284,48 @@ public class SftpFileOutput
                 }
                 logger.warn("retry to connect sftp server: " + count + " times");
             }
+        }
+    }
+
+    private FileObject newSftpFile(final URI sftpUri)
+            throws FileSystemException
+    {
+        Retriable<FileObject> retriable = new Retriable<FileObject>() {
+            public FileObject execute() throws FileSystemException
+            {
+                FileObject file = manager.resolveFile(sftpUri.toString(), fsOptions);
+                if (file.getParent().exists()) {
+                    logger.info("parent directory {} exists there", file.getParent());
+                }
+                else {
+                    logger.info("trying to create parent directory {}", file.getParent());
+                    file.getParent().createFolder();
+                }
+                return file;
+            }
+        };
+        try {
+            return withConnectionRetry(retriable);
+        }
+        catch (Exception e) {
+            throw (FileSystemException)e;
+        }
+    }
+
+    private OutputStream newSftpOutputStream(final FileObject file)
+            throws FileSystemException
+    {
+        Retriable<OutputStream> retriable = new Retriable<OutputStream>() {
+            public OutputStream execute() throws FileSystemException
+            {
+                return file.getContent().getOutputStream();
+            }
+        };
+        try {
+            return withConnectionRetry(retriable);
+        }
+        catch (Exception e) {
+            throw (FileSystemException)e;
         }
     }
 
