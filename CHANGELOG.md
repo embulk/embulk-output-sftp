@@ -1,3 +1,8 @@
+0.0.7 (2016-03-22)
+==================
+- Fix: Plugin throws ClassNotFoundException with EmbulkEmbed
+  - https://github.com/civitaspo/embulk-output-sftp/pull/19
+
 0.0.6 (2016-03-16)
 ==================
 - Fix: Avoid some connection errors
