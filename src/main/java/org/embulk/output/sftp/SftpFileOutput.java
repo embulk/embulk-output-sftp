@@ -55,6 +55,7 @@ public class SftpFileOutput
             System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
         }
         StandardFileSystemManager manager = new StandardFileSystemManager();
+        manager.setClassLoader(SftpFileOutput.class.getClassLoader());
         try {
             manager.init();
         }
