@@ -1,3 +1,12 @@
+0.0.8 (2016-09-26)
+==================
+- Fix: Use second as timetout setting instead of milli second
+  - https://github.com/civitaspo/embulk-output-sftp/pull/22
+- Fix: Fix CI failure only with Java7
+  - https://github.com/civitaspo/embulk-output-sftp/pull/21
+- Fix: Format code that were warned by `./gradlew checkstyle` command
+  - https://github.com/civitaspo/embulk-output-sftp/pull/23
+
 0.0.7 (2016-03-22)
 ==================
 - Fix: Plugin throws ClassNotFoundException with EmbulkEmbed
