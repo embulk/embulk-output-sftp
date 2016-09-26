@@ -83,7 +83,7 @@ public class SftpFileOutput
         try {
             SftpFileSystemConfigBuilder builder = SftpFileSystemConfigBuilder.getInstance();
             builder.setUserDirIsRoot(fsOptions, task.getUserDirIsRoot());
-            builder.setTimeout(fsOptions, task.getSftpConnectionTimeout());
+            builder.setTimeout(fsOptions, task.getSftpConnectionTimeout() * 1000);
             builder.setStrictHostKeyChecking(fsOptions, "no");
             if (task.getSecretKeyFilePath().isPresent()) {
                 IdentityInfo identityInfo = new IdentityInfo(
