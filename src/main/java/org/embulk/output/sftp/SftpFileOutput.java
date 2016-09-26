@@ -260,7 +260,8 @@ public class SftpFileOutput
         public T execute() throws Exception;
     }
 
-    private <T> T withConnectionRetry(final Retriable<T> op) throws Exception
+    private <T> T withConnectionRetry(final Retriable<T> op)
+            throws Exception
     {
         int count = 0;
         while (true) {
