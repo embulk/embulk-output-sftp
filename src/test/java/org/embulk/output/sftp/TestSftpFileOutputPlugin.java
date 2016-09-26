@@ -4,7 +4,6 @@ import com.google.common.base.Charsets;
 import com.google.common.base.Optional;
 import com.google.common.collect.Lists;
 import com.google.common.io.Resources;
-import org.apache.commons.vfs2.FileSystemException;
 import org.apache.sshd.common.NamedFactory;
 import org.apache.sshd.common.file.virtualfs.VirtualFileSystemFactory;
 import org.apache.sshd.server.Command;
@@ -30,7 +29,6 @@ import org.embulk.spi.PageTestUtils;
 import org.embulk.spi.Schema;
 import org.embulk.spi.TransactionalPageOutput;
 import org.embulk.spi.time.Timestamp;
-import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -472,42 +470,6 @@ public class TestSftpFileOutputPlugin
                 proxyServer.stop();
             }
         }
-    }
-
-    @Test
-    public void testTimeout()
-    {
-        // setting embulk config
-        final String pathPrefix = "/test/testUserPassword";
-        String configYaml = "" +
-                "type: sftp\n" +
-                "host: " + HOST + "\n" +
-                "port: " + PORT + "\n" +
-                "user: " + USERNAME + "\n" +
-                "secret_key_file: " + SECRET_KEY_FILE + "\n" +
-                "secret_key_passphrase: " + SECRET_KEY_PASSPHRASE + "\n" +
-                "path_prefix: " + testFolder.getRoot().getAbsolutePath() + pathPrefix + "\n" +
-                "timeout: 1\n" +
-                "file_ext: txt\n" +
-                "formatter:\n" +
-                "  type: csv\n" +
-                "  newline: CRLF\n" +
-                "  newline_in_field: LF\n" +
-                "  header_line: true\n" +
-                "  charset: UTF-8\n" +
-                "  quote_policy: NONE\n" +
-                "  quote: \"\\\"\"\n" +
-                "  escape: \"\\\\\"\n" +
-                "  null_string: \"\"\n" +
-                "  default_timezone: 'UTC'";
-
-        // exception
-        exception.expect(RuntimeException.class);
-        exception.expectCause(CoreMatchers.<Throwable>instanceOf(FileSystemException.class));
-        exception.expectMessage("Could not connect to SFTP server");
-
-        // runner.transaction -> ...
-        run(configYaml, Optional.of(60)); // sleep 1 minute while processing
     }
 
     @Test
