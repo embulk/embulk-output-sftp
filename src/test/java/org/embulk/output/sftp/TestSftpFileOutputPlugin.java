@@ -185,7 +185,7 @@ public class TestSftpFileOutputPlugin
         return fileNames;
     }
 
-    private void run(String configYaml, final Optional<Integer> sleep)
+    private void run(String configYaml)
     {
         ConfigSource config = getConfigFromYaml(configYaml);
         runner.transaction(config, SCHEMA, 1, new Control()
@@ -204,15 +204,9 @@ public class TestSftpFileOutputPlugin
                                  true, 2L, 3.0D, "45", Timestamp.ofEpochMilli(678L), newMap(newString("k"), newString("v")),
                                  true, 2L, 3.0D, "45", Timestamp.ofEpochMilli(678L), newMap(newString("k"), newString("v")))) {
                         pageOutput.add(page);
-                        if (sleep.isPresent()) {
-                            Thread.sleep(sleep.get() * 1000);
-                        }
                     }
                     pageOutput.commit();
                     committed = true;
-                }
-                catch (InterruptedException e) {
-                    logger.debug(e.getMessage(), e);
                 }
                 finally {
                     if (!committed) {
@@ -372,7 +366,7 @@ public class TestSftpFileOutputPlugin
                 "  default_timezone: 'UTC'";
 
         // runner.transaction -> ...
-        run(configYaml, Optional.<Integer>absent());
+        run(configYaml);
 
         List<String> fileList = lsR(Lists.<String>newArrayList(), Paths.get(testFolder.getRoot().getAbsolutePath()));
         assertThat(fileList, hasItem(containsString(pathPrefix + "001.00.txt")));
@@ -408,7 +402,7 @@ public class TestSftpFileOutputPlugin
                 "  default_timezone: 'UTC'";
 
         // runner.transaction -> ...
-        run(configYaml, Optional.<Integer>absent());
+        run(configYaml);
 
         List<String> fileList = lsR(Lists.<String>newArrayList(), Paths.get(testFolder.getRoot().getAbsolutePath()));
         assertThat(fileList, hasItem(containsString(pathPrefix + "001.00.txt")));
@@ -456,7 +450,7 @@ public class TestSftpFileOutputPlugin
                     "  default_timezone: 'UTC'";
 
             // runner.transaction -> ...
-            run(configYaml, Optional.<Integer>absent());
+            run(configYaml);
 
             List<String> fileList = lsR(Lists.<String>newArrayList(), Paths.get(testFolder.getRoot().getAbsolutePath()));
             assertThat(fileList, hasItem(containsString(pathPrefix + "001.00.txt")));
