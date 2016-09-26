@@ -17,7 +17,6 @@ import org.embulk.spi.TransactionalFileOutput;
 import org.embulk.spi.unit.LocalFile;
 import org.slf4j.Logger;
 
-import java.lang.Void;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -174,7 +173,7 @@ public class SftpFileOutput
                 withConnectionRetry(retriable);
             }
             catch (Exception e) {
-                throw (IOException)e;
+                throw (IOException) e;
             }
         }
         catch (IOException e) {
@@ -255,20 +254,20 @@ public class SftpFileOutput
     {
         /**
          * Execute the operation with the given (or null) return value.
-         * 
          * @return any return value from the operation
          * @throws Exception
          */
         public T execute() throws Exception;
     }
 
-    private <T> T withConnectionRetry( final Retriable<T> op ) throws Exception {
+    private <T> T withConnectionRetry(final Retriable<T> op) throws Exception
+    {
         int count = 0;
         while (true) {
             try {
                 return op.execute();
             }
-            catch(final Exception e) {
+            catch (final Exception e) {
                 if (++count > maxConnectionRetry) {
                     throw e;
                 }
@@ -309,7 +308,7 @@ public class SftpFileOutput
             return withConnectionRetry(retriable);
         }
         catch (Exception e) {
-            throw (FileSystemException)e;
+            throw (FileSystemException) e;
         }
     }
 
@@ -326,7 +325,7 @@ public class SftpFileOutput
             return withConnectionRetry(retriable);
         }
         catch (Exception e) {
-            throw (FileSystemException)e;
+            throw (FileSystemException) e;
         }
     }
 
