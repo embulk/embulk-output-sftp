@@ -296,10 +296,10 @@ public class SftpFileOutput
             {
                 FileObject file = manager.resolveFile(sftpUri.toString(), fsOptions);
                 if (file.getParent().exists()) {
-                    logger.info("parent directory {} exists there", file.getParent());
+                    logger.info("parent directory {} exists there", file.getParent().getPublicURIString());
                 }
                 else {
-                    logger.info("trying to create parent directory {}", file.getParent());
+                    logger.info("trying to create parent directory {}", file.getParent().getPublicURIString());
                     file.getParent().createFolder();
                 }
                 return file;
