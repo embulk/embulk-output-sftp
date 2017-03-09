@@ -1,3 +1,8 @@
+0.0.9 (2017-03-09)
+==================
+- Fix: Hide password in the log
+  - https://github.com/civitaspo/embulk-output-sftp/pull/25
+
 0.0.8 (2016-09-26)
 ==================
 - Fix: Use second as timetout setting instead of milli second
