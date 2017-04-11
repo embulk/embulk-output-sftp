@@ -145,7 +145,6 @@ public class SftpFileOutput
 
         try {
             currentFile = newSftpFile(getSftpFileUri(getOutputFilePath()));
-            currentFileOutputStream = newSftpOutputStream(currentFile);
             logger.info("new sftp file: {}", currentFile.getPublicURIString());
         }
         catch (FileSystemException e) {
@@ -165,6 +164,7 @@ public class SftpFileOutput
             Retriable<Void> retriable = new Retriable<Void>() {
                 public Void execute() throws IOException
                 {
+                    currentFileOutputStream = currentFile.getContent().getOutputStream();
                     currentFileOutputStream.write(buffer.array(), buffer.offset(), buffer.limit());
                     return null;
                 }
@@ -303,23 +303,6 @@ public class SftpFileOutput
                     file.getParent().createFolder();
                 }
                 return file;
-            }
-        };
-        try {
-            return withConnectionRetry(retriable);
-        }
-        catch (Exception e) {
-            throw (FileSystemException) e;
-        }
-    }
-
-    private OutputStream newSftpOutputStream(final FileObject file)
-            throws FileSystemException
-    {
-        Retriable<OutputStream> retriable = new Retriable<OutputStream>() {
-            public OutputStream execute() throws FileSystemException
-            {
-                return file.getContent().getOutputStream();
             }
         };
         try {
