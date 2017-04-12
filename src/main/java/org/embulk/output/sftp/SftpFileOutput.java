@@ -20,9 +20,9 @@ import org.embulk.spi.util.RetryExecutor.RetryGiveupException;
 import org.embulk.spi.util.RetryExecutor.Retryable;
 import org.slf4j.Logger;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 
@@ -49,7 +49,7 @@ public class SftpFileOutput
     private final int taskIndex;
     private int fileIndex = 0;
     private FileObject currentFile;
-    private OutputStream currentFileOutputStream;
+    private BufferedOutputStream currentFileOutputStream;
 
     private StandardFileSystemManager initializeStandardFileSystemManager()
     {
@@ -177,7 +177,7 @@ public class SftpFileOutput
                         @Override
                         public Void call() throws IOException, RetryGiveupException
                         {
-                            currentFileOutputStream = currentFile.getContent().getOutputStream();
+                            currentFileOutputStream = new BufferedOutputStream(currentFile.getContent().getOutputStream());
                             currentFileOutputStream.write(buffer.array(), buffer.offset(), buffer.limit());
                             return null;
                         }
