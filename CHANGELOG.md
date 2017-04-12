@@ -1,3 +1,7 @@
+0.1.0 (2017-04-12)
+- Fix: Improve retry logic
+  - https://github.com/embulk/embulk-output-sftp/pull/29
+
 0.0.9 (2017-03-09)
 ==================
 - Fix: Hide password in the log
