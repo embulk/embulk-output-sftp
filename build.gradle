@@ -88,12 +88,12 @@ task gemspec {
 Gem::Specification.new do |spec|
   spec.name          = "${project.name}"
   spec.version       = "${project.version}"
-  spec.authors       = ["Civitaspo"]
-  spec.summary       = %[Sftp file output plugin for Embulk]
-  spec.description   = %[Stores files on Sftp.]
-  spec.email         = ["civitaspo@gmail.com"]
+  spec.authors       = ["Civitaspo", "Satoshi Akama"]
+  spec.summary       = %[SFTP file output plugin for Embulk]
+  spec.description   = %[Stores files on SFTP server.]
+  spec.email         = ["civitaspo@gmail.com", "satoshiakama@gmail.com"]
   spec.licenses      = ["MIT"]
-  spec.homepage      = "https://github.com/civitaspo/embulk-output-sftp"
+  spec.homepage      = "https://github.com/embulk/embulk-output-sftp"
 
   spec.files         = `git ls-files`.split("\n") + Dir["classpath/*.jar"]
   spec.test_files    = spec.files.grep(%r"^(test|spec)/")
