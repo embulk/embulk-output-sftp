@@ -1,6 +1,5 @@
-# Sftp file output plugin for Embulk
-[![Build Status](https://travis-ci.org/civitaspo/embulk-output-sftp.svg)](https://travis-ci.org/civitaspo/embulk-output-sftp)
-[![Coverage Status](https://coveralls.io/repos/civitaspo/embulk-output-sftp/badge.svg?branch=master&service=github)](https://coveralls.io/github/civitaspo/embulk-output-sftp?branch=master)
+# SFTP file output plugin for Embulk
+[![Build Status](https://travis-ci.org/embulk/embulk-output-sftp.svg)](https://travis-ci.org/embulk/embulk-output-sftp)
 
 Stores files on a SFTP Server
 
