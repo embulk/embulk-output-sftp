@@ -177,9 +177,10 @@ public class SftpFileOutput
                         @Override
                         public Void call() throws IOException, RetryGiveupException
                         {
-                            if (!currentFile.getContent().isOpen()) {
-                                currentFileOutputStream = new BufferedOutputStream(currentFile.getContent().getOutputStream());
+                            if (currentFile.getContent().isOpen()) {
+                                currentFile.getContent().close();
                             }
+                            currentFileOutputStream = new BufferedOutputStream(currentFile.getContent().getOutputStream());
                             currentFileOutputStream.write(buffer.array(), buffer.offset(), buffer.limit());
                             return null;
                         }
