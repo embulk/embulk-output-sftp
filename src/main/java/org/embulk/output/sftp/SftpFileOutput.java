@@ -177,6 +177,9 @@ public class SftpFileOutput
                         @Override
                         public Void call() throws IOException, RetryGiveupException
                         {
+                            if (!currentFile.isContentOpen()) {
+                                currentFile = newSftpFile(getSftpFileUri(getOutputFilePath()));
+                            }
                             if (currentFile.getContent().isOpen()) {
                                 currentFile.getContent().close();
                             }
