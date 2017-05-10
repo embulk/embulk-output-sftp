@@ -124,6 +124,7 @@ $ embulk run -Ilib example/sample.yml
 
 ```
 $ ./gradlew gem  # -t to watch change of files and rebuild continuously
+$ ./gradlew bintrayUpload # release embulk-output-sftp to Bintray maven repo
 ```
 
 ## Note
