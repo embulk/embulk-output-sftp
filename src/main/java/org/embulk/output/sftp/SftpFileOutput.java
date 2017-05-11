@@ -15,7 +15,6 @@ import org.embulk.spi.Exec;
 import org.embulk.spi.FileOutput;
 import org.embulk.spi.TransactionalFileOutput;
 import org.embulk.spi.unit.LocalFile;
-import org.embulk.spi.util.RetryExecutor;
 import org.embulk.spi.util.RetryExecutor.RetryGiveupException;
 import org.embulk.spi.util.RetryExecutor.Retryable;
 import org.slf4j.Logger;
@@ -149,6 +148,7 @@ public class SftpFileOutput
 
         try {
             currentFile = newSftpFile(getSftpFileUri(getOutputFilePath()));
+            currentFileOutputStream = newSftpOutputStream(currentFile);
             logger.info("new sftp file: {}", currentFile.getPublicURIString());
         }
         catch (FileSystemException e) {
@@ -163,23 +163,26 @@ public class SftpFileOutput
         if (currentFile == null) {
             throw new IllegalStateException("nextFile() must be called before poll()");
         }
-        uploadFile(buffer);
+        try {
+            currentFileOutputStream.write(buffer.array(), buffer.offset(), buffer.limit());
+        }
+        catch (IOException ex) {
+            Throwables.propagate(ex);
+        }
     }
 
-    private Void uploadFile(final Buffer buffer)
+    private BufferedOutputStream newSftpOutputStream(final FileObject file)
     {
         try {
             return retryExecutor()
                     .withRetryLimit(maxConnectionRetry)
                     .withInitialRetryWait(500)
                     .withMaxRetryWait(30 * 1000)
-                    .runInterruptible(new Retryable<Void>() {
+                    .runInterruptible(new Retryable<BufferedOutputStream>() {
                         @Override
-                        public Void call() throws IOException, RetryGiveupException
+                        public BufferedOutputStream call() throws IOException, RetryGiveupException
                         {
-                            currentFileOutputStream = new BufferedOutputStream(currentFile.getContent().getOutputStream());
-                            currentFileOutputStream.write(buffer.array(), buffer.offset(), buffer.limit());
-                            return null;
+                            return new BufferedOutputStream(file.getContent().getOutputStream());
                         }
 
                         @Override
@@ -190,9 +193,9 @@ public class SftpFileOutput
 
                         @Override
                         public void onRetry(Exception exception, int retryCount, int retryLimit, int retryWait)
-                                throws RetryExecutor.RetryGiveupException
+                                throws RetryGiveupException
                         {
-                            String message = String.format("SFTP write request failed. Retrying %d/%d after %d seconds. Message: %s",
+                            String message = String.format("SFTP output new OutputStream failed. Retrying %d/%d after %d seconds. Message: %s",
                                     retryCount, retryLimit, retryWait / 1000, exception.getMessage());
                             if (retryCount % 3 == 0) {
                                 logger.warn(message, exception);
@@ -204,19 +207,16 @@ public class SftpFileOutput
 
                         @Override
                         public void onGiveup(Exception firstException, Exception lastException)
-                                throws RetryExecutor.RetryGiveupException
+                                throws RetryGiveupException
                         {
                         }
                     });
         }
-        catch (RetryExecutor.RetryGiveupException ex) {
+        catch (RetryGiveupException ex) {
             throw Throwables.propagate(ex.getCause());
         }
         catch (InterruptedException ex) {
             throw Throwables.propagate(ex);
-        }
-        finally {
-            buffer.release();
         }
     }
 
@@ -251,7 +251,7 @@ public class SftpFileOutput
 
                         @Override
                         public void onRetry(Exception exception, int retryCount, int retryLimit, int retryWait)
-                                throws RetryExecutor.RetryGiveupException
+                                throws RetryGiveupException
                         {
                             String message = String.format("SFTP resolve file request failed. Retrying %d/%d after %d seconds. Message: %s",
                                     retryCount, retryLimit, retryWait / 1000, exception.getMessage());
@@ -265,12 +265,12 @@ public class SftpFileOutput
 
                         @Override
                         public void onGiveup(Exception firstException, Exception lastException)
-                                throws RetryExecutor.RetryGiveupException
+                                throws RetryGiveupException
                         {
                         }
                     });
         }
-        catch (RetryExecutor.RetryGiveupException ex) {
+        catch (RetryGiveupException ex) {
             throw Throwables.propagate(ex.getCause());
         }
         catch (InterruptedException ex) {
