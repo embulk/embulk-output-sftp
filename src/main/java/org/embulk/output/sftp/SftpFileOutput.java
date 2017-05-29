@@ -221,7 +221,7 @@ public class SftpFileOutput
                     .withMaxRetryWait(30 * 1000)
                     .runInterruptible(new Retryable<Void>() {
                         @Override
-                        public Void call() throws InterruptedException, IOException, RetryGiveupException
+                        public Void call() throws IOException
                         {
                             FileObject remoteFile = newSftpFile(getSftpFileUri(remotePath));
                             logger.info("new sftp file: {}", remoteFile.getPublicURIString());
@@ -282,54 +282,17 @@ public class SftpFileOutput
         return pathPrefix + String.format(sequenceFormat, taskIndex, fileIndex) + fileNameExtension;
     }
 
-    private FileObject newSftpFile(final URI sftpUri)
-            throws FileSystemException, RetryGiveupException, InterruptedException
+    private FileObject newSftpFile(final URI sftpUri) throws FileSystemException
     {
-        return retryExecutor()
-                .withRetryLimit(maxConnectionRetry)
-                .withInitialRetryWait(500)
-                .withMaxRetryWait(30 * 1000)
-                .runInterruptible(new Retryable<FileObject>() {
-                    @Override
-                    public FileObject call() throws FileSystemException, RetryGiveupException
-                    {
-                        FileObject file = manager.resolveFile(sftpUri.toString(), fsOptions);
-                        if (file.getParent().exists()) {
-                            logger.info("parent directory {} exists there", file.getParent().getPublicURIString());
-                        }
-                        else {
-                            logger.info("trying to create parent directory {}", file.getParent().getPublicURIString());
-                            file.getParent().createFolder();
-                        }
-                        return file;
-                    }
-
-                    @Override
-                    public boolean isRetryableException(Exception exception)
-                    {
-                        return true;
-                    }
-
-                    @Override
-                    public void onRetry(Exception exception, int retryCount, int retryLimit, int retryWait)
-                            throws RetryGiveupException
-                    {
-                        String message = String.format("SFTP resolve file request failed. Retrying %d/%d after %d seconds. Message: %s",
-                                retryCount, retryLimit, retryWait / 1000, exception.getMessage());
-                        if (retryCount % 3 == 0) {
-                            logger.warn(message, exception);
-                        }
-                        else {
-                            logger.warn(message);
-                        }
-                    }
-
-                    @Override
-                    public void onGiveup(Exception firstException, Exception lastException)
-                            throws RetryGiveupException
-                    {
-                    }
-                });
+        FileObject file = manager.resolveFile(sftpUri.toString(), fsOptions);
+        if (file.getParent().exists()) {
+            logger.info("parent directory {} exists there", file.getParent().getPublicURIString());
+        }
+        else {
+            logger.info("trying to create parent directory {}", file.getParent().getPublicURIString());
+            file.getParent().createFolder();
+        }
+        return file;
     }
 
     private Function<LocalFile, String> localFileToPathString()
