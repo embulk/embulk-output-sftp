@@ -285,6 +285,9 @@ public class SftpFileOutput
     private FileObject newSftpFile(final URI sftpUri) throws FileSystemException
     {
         FileObject file = manager.resolveFile(sftpUri.toString(), fsOptions);
+        if (file.exists()) {
+            file.delete();
+        }
         if (file.getParent().exists()) {
             logger.info("parent directory {} exists there", file.getParent().getPublicURIString());
         }
