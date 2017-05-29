@@ -2,6 +2,7 @@ package org.embulk.output.sftp;
 
 import com.google.common.base.Function;
 import com.google.common.base.Throwables;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.FileSystemOptions;
@@ -15,15 +16,22 @@ import org.embulk.spi.Exec;
 import org.embulk.spi.FileOutput;
 import org.embulk.spi.TransactionalFileOutput;
 import org.embulk.spi.unit.LocalFile;
+import org.embulk.spi.util.RetryExecutor.RetryGiveupException;
+import org.embulk.spi.util.RetryExecutor.Retryable;
 import org.slf4j.Logger;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 
 import static org.embulk.output.sftp.SftpFileOutputPlugin.PluginTask;
+import static org.embulk.spi.util.RetryExecutor.retryExecutor;
 
 /**
  * Created by takahiro.nakayama on 10/20/15.
@@ -44,8 +52,8 @@ public class SftpFileOutput
 
     private final int taskIndex;
     private int fileIndex = 0;
-    private FileObject currentFile;
-    private OutputStream currentFileOutputStream;
+    private File tempFile;
+    private BufferedOutputStream localOutput = null;
 
     private StandardFileSystemManager initializeStandardFileSystemManager()
     {
@@ -144,11 +152,10 @@ public class SftpFileOutput
         closeCurrentFile();
 
         try {
-            currentFile = newSftpFile(getSftpFileUri(getOutputFilePath()));
-            currentFileOutputStream = newSftpOutputStream(currentFile);
-            logger.info("new sftp file: {}", currentFile.getPublicURIString());
+            tempFile = Exec.getTempFileSpace().createTempFile();
+            localOutput = new BufferedOutputStream(new FileOutputStream(tempFile));
         }
-        catch (FileSystemException e) {
+        catch (FileNotFoundException e) {
             logger.error(e.getMessage());
             Throwables.propagate(e);
         }
@@ -157,28 +164,11 @@ public class SftpFileOutput
     @Override
     public void add(final Buffer buffer)
     {
-        if (currentFile == null) {
-            throw new IllegalStateException("nextFile() must be called before poll()");
-        }
-
         try {
-            Retriable<Void> retriable = new Retriable<Void>() {
-                public Void execute() throws IOException
-                {
-                    currentFileOutputStream.write(buffer.array(), buffer.offset(), buffer.limit());
-                    return null;
-                }
-            };
-            try {
-                withConnectionRetry(retriable);
-            }
-            catch (Exception e) {
-                throw (IOException) e;
-            }
+            localOutput.write(buffer.array(), buffer.offset(), buffer.limit());
         }
-        catch (IOException e) {
-            logger.error(e.getMessage());
-            Throwables.propagate(e);
+        catch (IOException ex) {
+            throw Throwables.propagate(ex);
         }
         finally {
             buffer.release();
@@ -189,6 +179,7 @@ public class SftpFileOutput
     public void finish()
     {
         closeCurrentFile();
+        uploadFile(getOutputFilePath());
     }
 
     @Override
@@ -211,27 +202,68 @@ public class SftpFileOutput
 
     private void closeCurrentFile()
     {
-        if (currentFile == null) {
-            return;
+        if (localOutput != null) {
+            try {
+                localOutput.close();
+            }
+            catch (IOException ex) {
+                throw Throwables.propagate(ex);
+            }
         }
+    }
 
+    private Void uploadFile(final String remotePath)
+    {
         try {
-            currentFileOutputStream.close();
-        }
-        catch (IOException e) {
-            logger.info(e.getMessage());
-        }
+            return retryExecutor()
+                    .withRetryLimit(maxConnectionRetry)
+                    .withInitialRetryWait(500)
+                    .withMaxRetryWait(30 * 1000)
+                    .runInterruptible(new Retryable<Void>() {
+                        @Override
+                        public Void call() throws IOException
+                        {
+                            FileObject remoteFile = newSftpFile(getSftpFileUri(remotePath));
+                            logger.info("new sftp file: {}", remoteFile.getPublicURIString());
+                            try (BufferedOutputStream outputStream = new BufferedOutputStream(remoteFile.getContent().getOutputStream())) {
+                                try (BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(tempFile))) {
+                                    IOUtils.copy(inputStream, outputStream);
+                                }
+                            }
+                            return null;
+                        }
 
-        try {
-            currentFile.close();
-        }
-        catch (FileSystemException e) {
-            logger.warn(e.getMessage());
-        }
+                        @Override
+                        public boolean isRetryableException(Exception exception)
+                        {
+                            return true;
+                        }
 
-        fileIndex++;
-        currentFile = null;
-        currentFileOutputStream = null;
+                        @Override
+                        public void onRetry(Exception exception, int retryCount, int retryLimit, int retryWait) throws RetryGiveupException
+                        {
+                            String message = String.format("SFTP output failed. Retrying %d/%d after %d seconds. Message: %s",
+                                    retryCount, retryLimit, retryWait / 1000, exception.getMessage());
+                            if (retryCount % 3 == 0) {
+                                logger.warn(message, exception);
+                            }
+                            else {
+                                logger.warn(message);
+                            }
+                        }
+
+                        @Override
+                        public void onGiveup(Exception firstException, Exception lastException) throws RetryGiveupException
+                        {
+                        }
+                    });
+        }
+        catch (RetryGiveupException ex) {
+            throw Throwables.propagate(ex.getCause());
+        }
+        catch (InterruptedException ex) {
+            throw Throwables.propagate(ex);
+        }
     }
 
     private URI getSftpFileUri(String remoteFilePath)
@@ -250,84 +282,20 @@ public class SftpFileOutput
         return pathPrefix + String.format(sequenceFormat, taskIndex, fileIndex) + fileNameExtension;
     }
 
-    interface Retriable<T>
+    private FileObject newSftpFile(final URI sftpUri) throws FileSystemException
     {
-        /**
-         * Execute the operation with the given (or null) return value.
-         * @return any return value from the operation
-         * @throws Exception
-         */
-        public T execute() throws Exception;
-    }
-
-    private <T> T withConnectionRetry(final Retriable<T> op)
-            throws Exception
-    {
-        int count = 0;
-        while (true) {
-            try {
-                return op.execute();
-            }
-            catch (final Exception e) {
-                if (++count > maxConnectionRetry) {
-                    throw e;
-                }
-                logger.warn("failed to connect sftp server: " + e.getMessage(), e);
-
-                try {
-                    long sleepTime = ((long) Math.pow(2, count) * 1000);
-                    logger.warn("sleep in next connection retry: {} milliseconds", sleepTime);
-                    Thread.sleep(sleepTime); // milliseconds
-                }
-                catch (InterruptedException e1) {
-                    // Ignore this exception because this exception is just about `sleep`.
-                    logger.warn(e1.getMessage(), e1);
-                }
-                logger.warn("retry to connect sftp server: " + count + " times");
-            }
+        FileObject file = manager.resolveFile(sftpUri.toString(), fsOptions);
+        if (file.exists()) {
+            file.delete();
         }
-    }
-
-    private FileObject newSftpFile(final URI sftpUri)
-            throws FileSystemException
-    {
-        Retriable<FileObject> retriable = new Retriable<FileObject>() {
-            public FileObject execute() throws FileSystemException
-            {
-                FileObject file = manager.resolveFile(sftpUri.toString(), fsOptions);
-                if (file.getParent().exists()) {
-                    logger.info("parent directory {} exists there", file.getParent().getPublicURIString());
-                }
-                else {
-                    logger.info("trying to create parent directory {}", file.getParent().getPublicURIString());
-                    file.getParent().createFolder();
-                }
-                return file;
-            }
-        };
-        try {
-            return withConnectionRetry(retriable);
+        if (file.getParent().exists()) {
+            logger.info("parent directory {} exists there", file.getParent().getPublicURIString());
         }
-        catch (Exception e) {
-            throw (FileSystemException) e;
+        else {
+            logger.info("trying to create parent directory {}", file.getParent().getPublicURIString());
+            file.getParent().createFolder();
         }
-    }
-
-    private OutputStream newSftpOutputStream(final FileObject file)
-            throws FileSystemException
-    {
-        Retriable<OutputStream> retriable = new Retriable<OutputStream>() {
-            public OutputStream execute() throws FileSystemException
-            {
-                return file.getContent().getOutputStream();
-            }
-        };
-        try {
-            return withConnectionRetry(retriable);
-        }
-        catch (Exception e) {
-            throw (FileSystemException) e;
-        }
+        return file;
     }
 
     private Function<LocalFile, String> localFileToPathString()
