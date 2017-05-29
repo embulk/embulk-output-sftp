@@ -1,6 +1,6 @@
-0.1.0 (2017-04-12)
+0.1.1 (2017-05-29)
 - Fix: Improve retry logic
-  - https://github.com/embulk/embulk-output-sftp/pull/29
+  - https://github.com/embulk/embulk-output-sftp/pull/34
 
 0.0.9 (2017-03-09)
 ==================
