@@ -180,6 +180,7 @@ public class SftpFileOutput
     {
         closeCurrentFile();
         uploadFile(getOutputFilePath());
+        fileIndex++;
     }
 
     @Override
