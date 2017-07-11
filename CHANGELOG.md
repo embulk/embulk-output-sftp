@@ -1,3 +1,7 @@
+0.1.2 (2017-07-11)
+- Fix: Increment fileIndex after complete uploadFile
+  - https://github.com/embulk/embulk-output-sftp/pull/35
+
 0.1.1 (2017-05-29)
 - Fix: Improve retry logic
   - https://github.com/embulk/embulk-output-sftp/pull/34
