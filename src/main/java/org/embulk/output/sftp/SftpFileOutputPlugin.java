@@ -12,15 +12,13 @@ import org.embulk.spi.Exec;
 import org.embulk.spi.FileOutputPlugin;
 import org.embulk.spi.TransactionalFileOutput;
 import org.embulk.spi.unit.LocalFile;
-import org.slf4j.Logger;
 
 import java.util.List;
+import java.util.Map;
 
 public class SftpFileOutputPlugin
         implements FileOutputPlugin
 {
-    private Logger logger = Exec.getLogger(SftpFileOutputPlugin.class);
-
     public interface PluginTask
             extends Task
     {
@@ -101,6 +99,17 @@ public class SftpFileOutputPlugin
             int taskCount,
             List<TaskReport> successTaskReports)
     {
+        SftpUtils sftpUtils = new SftpUtils(taskSource.loadTask(PluginTask.class));
+        for (TaskReport report : successTaskReports) {
+            List<Map<String, String>> moveFileList = report.get(List.class, "file_list");
+            for (Map<String, String> pairFiles : moveFileList) {
+                String temporaryFileName = pairFiles.get("temporary_filename");
+                String realFileName = pairFiles.get("real_filename");
+
+                sftpUtils.renameFile(temporaryFileName, realFileName);
+            }
+        }
+        sftpUtils.close();
     }
 
     @Override
