@@ -46,8 +46,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.PublicKey;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static com.google.common.io.Files.readLines;
 import static org.embulk.spi.type.Types.BOOLEAN;
@@ -217,6 +221,24 @@ public class TestSftpFileOutputPlugin
                 return Lists.newArrayList();
             }
         });
+        PluginTask task = config.loadConfig(PluginTask.class);
+        TaskSource taskSource = task.dump();
+        List<TaskReport> taskReports = Arrays.asList(generateTaskReport(task));
+        runner.cleanup(taskSource, SCHEMA, 0, taskReports);
+    }
+
+    private TaskReport generateTaskReport(PluginTask task)
+    {
+        TaskReport report = Exec.newTaskReport();
+        String fileName = task.getPathPrefix() + "001.00.txt";
+
+        List<Map<String, String>> fileList = new ArrayList<>();
+        Map<String, String> executedFiles = new HashMap<>();
+        executedFiles.put("temporary_filename", fileName + ".tmp");
+        executedFiles.put("real_filename", fileName);
+        fileList.add(executedFiles);
+        report.set("file_list", fileList);
+        return report;
     }
 
     private void assertRecordsInFile(String filePath)
