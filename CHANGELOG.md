@@ -1,3 +1,7 @@
+0.1.3 (2017-11-07)
+- Enhance: Create temporary file and rename it after upload completed
+  - https://github.com/embulk/embulk-output-sftp/pull/37
+
 0.1.2 (2017-07-11)
 - Fix: Increment fileIndex after complete uploadFile
   - https://github.com/embulk/embulk-output-sftp/pull/35
