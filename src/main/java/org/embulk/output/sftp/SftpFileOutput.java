@@ -87,7 +87,7 @@ public class SftpFileOutput
         sftpUtils.uploadFile(tempFile, temporaryFileName);
 
         Map<String, String> executedFiles = new HashMap<>();
-        executedFiles.put("temporary_filename", fileName + temporaryFileSuffix);
+        executedFiles.put("temporary_filename", temporaryFileName);
         executedFiles.put("real_filename", fileName);
         fileList.add(executedFiles);
         fileIndex++;
