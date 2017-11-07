@@ -200,7 +200,7 @@ public class SftpUtils
                             FileObject previousFile = manager.resolveFile(getSftpFileUri(before).toString(), fsOptions);
                             FileObject afterFile = manager.resolveFile(getSftpFileUri(after).toString(), fsOptions);
                             previousFile.moveTo(afterFile);
-                            logger.info("renamed remoted file: {} to {}", previousFile.getPublicURIString(), afterFile.getPublicURIString());
+                            logger.info("renamed remote file: {} to {}", previousFile.getPublicURIString(), afterFile.getPublicURIString());
 
                             return null;
                         }
