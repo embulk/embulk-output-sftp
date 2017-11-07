@@ -143,14 +143,13 @@ public class SftpUtils
                         @Override
                         public Void call() throws IOException
                         {
-                            FileObject remoteFile = newSftpFile(getSftpFileUri(remotePath));
-                            logger.info("new sftp file: {}", remoteFile.getPublicURIString());
-                            try (BufferedOutputStream outputStream = new BufferedOutputStream(remoteFile.getContent().getOutputStream())) {
-                                try (BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(localTempFile))) {
-                                    IOUtils.copy(inputStream, outputStream);
-                                }
+                            try (FileObject remoteFile = newSftpFile(getSftpFileUri(remotePath));
+                                 BufferedOutputStream outputStream = new BufferedOutputStream(remoteFile.getContent().getOutputStream());
+                                 BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(localTempFile))
+                            ) {
+                                logger.info("new sftp file: {}", remoteFile.getPublicURIString());
+                                IOUtils.copy(inputStream, outputStream);
                             }
-                            remoteFile.close();
                             return null;
                         }
 
