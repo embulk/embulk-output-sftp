@@ -1,3 +1,9 @@
+0.1.4 (2017-12-21)
+- Fix: Disable remote temporary file rename logic
+  - https://github.com/embulk/embulk-output-sftp/pull/41
+- Enhance: Upgrade "commons-vfs2", "com.jcraft:jsch" and "commons-io:commons-io"
+  - https://github.com/embulk/embulk-output-sftp/pull/42
+
 0.1.3 (2017-11-07)
 - Enhance: Create temporary file and rename it after upload completed
   - https://github.com/embulk/embulk-output-sftp/pull/37
