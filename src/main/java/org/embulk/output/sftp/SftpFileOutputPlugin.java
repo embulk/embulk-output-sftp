@@ -14,7 +14,6 @@ import org.embulk.spi.TransactionalFileOutput;
 import org.embulk.spi.unit.LocalFile;
 
 import java.util.List;
-import java.util.Map;
 
 public class SftpFileOutputPlugin
         implements FileOutputPlugin
@@ -99,17 +98,21 @@ public class SftpFileOutputPlugin
             int taskCount,
             List<TaskReport> successTaskReports)
     {
-        SftpUtils sftpUtils = new SftpUtils(taskSource.loadTask(PluginTask.class));
-        for (TaskReport report : successTaskReports) {
-            List<Map<String, String>> moveFileList = report.get(List.class, "file_list");
-            for (Map<String, String> pairFiles : moveFileList) {
-                String temporaryFileName = pairFiles.get("temporary_filename");
-                String realFileName = pairFiles.get("real_filename");
-
-                sftpUtils.renameFile(temporaryFileName, realFileName);
-            }
-        }
-        sftpUtils.close();
+        /*
+          #37 causes permission failure while renaming remote file.
+          https://github.com/embulk/embulk-output-sftp/issues/40
+         */
+//        SftpUtils sftpUtils = new SftpUtils(taskSource.loadTask(PluginTask.class));
+//        for (TaskReport report : successTaskReports) {
+//            List<Map<String, String>> moveFileList = report.get(List.class, "file_list");
+//            for (Map<String, String> pairFiles : moveFileList) {
+//                String temporaryFileName = pairFiles.get("temporary_filename");
+//                String realFileName = pairFiles.get("real_filename");
+//
+//                sftpUtils.renameFile(temporaryFileName, realFileName);
+//            }
+//        }
+//        sftpUtils.close();
     }
 
     @Override
