@@ -84,7 +84,12 @@ public class SftpFileOutput
         closeCurrentFile();
         String fileName = getOutputFilePath();
         String temporaryFileName = fileName + temporaryFileSuffix;
-        sftpUtils.uploadFile(tempFile, temporaryFileName);
+        /*
+          #37 causes permission failure while renaming remote file.
+          https://github.com/embulk/embulk-output-sftp/issues/40
+         */
+        //sftpUtils.uploadFile(tempFile, temporaryFileName);
+        sftpUtils.uploadFile(tempFile, fileName);
 
         Map<String, String> executedFiles = new HashMap<>();
         executedFiles.put("temporary_filename", temporaryFileName);
