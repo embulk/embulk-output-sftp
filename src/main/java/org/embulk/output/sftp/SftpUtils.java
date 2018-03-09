@@ -49,6 +49,7 @@ public class SftpUtils
         StandardFileSystemManager manager = new StandardFileSystemManager();
         manager.setClassLoader(SftpUtils.class.getClassLoader());
         try {
+            manager.addProvider("sftp", new org.embulk.output.sftp.provider.sftp.SftpFileProvider());
             manager.init();
         }
         catch (FileSystemException e) {
