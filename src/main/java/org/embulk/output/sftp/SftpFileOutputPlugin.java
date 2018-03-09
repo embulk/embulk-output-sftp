@@ -70,6 +70,10 @@ public class SftpFileOutputPlugin
         @Config("proxy")
         @ConfigDefault("null")
         public Optional<ProxyTask> getProxy();
+
+        @Config("rename_file_after_upload")
+        @ConfigDefault("false")
+        public Boolean getRenameFileAfterUpload();
     }
 
     @Override
@@ -99,22 +103,26 @@ public class SftpFileOutputPlugin
             int taskCount,
             List<TaskReport> successTaskReports)
     {
-        SftpUtils sftpUtils = null;
-        try {
-            new SftpUtils(taskSource.loadTask(PluginTask.class));
-            for (TaskReport report : successTaskReports) {
-                List<Map<String, String>> moveFileList = report.get(List.class, "file_list");
-                for (Map<String, String> pairFiles : moveFileList) {
-                    String temporaryFileName = pairFiles.get("temporary_filename");
-                    String realFileName = pairFiles.get("real_filename");
+        PluginTask task = taskSource.loadTask(PluginTask.class);
 
-                    sftpUtils.renameFile(temporaryFileName, realFileName);
+        if (task.getRenameFileAfterUpload()) {
+            SftpUtils sftpUtils = null;
+            try {
+                sftpUtils = new SftpUtils(task);
+                for (TaskReport report : successTaskReports) {
+                    List<Map<String, String>> moveFileList = report.get(List.class, "file_list");
+                    for (Map<String, String> pairFiles : moveFileList) {
+                        String temporaryFileName = pairFiles.get("temporary_filename");
+                        String realFileName = pairFiles.get("real_filename");
+
+                        sftpUtils.renameFile(temporaryFileName, realFileName);
+                    }
                 }
             }
-        }
-        finally {
-            if (sftpUtils != null) {
-                sftpUtils.close();
+            finally {
+                if (sftpUtils != null) {
+                    sftpUtils.close();
+                }
             }
         }
     }
