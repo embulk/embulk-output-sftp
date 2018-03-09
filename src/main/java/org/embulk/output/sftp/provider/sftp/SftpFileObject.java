@@ -39,6 +39,6 @@ public class SftpFileObject extends org.apache.commons.vfs2.provider.sftp.SftpFi
     @Override
     protected boolean doIsWriteable() throws Exception
     {
-        return getPermissions(true).isWritable();
+        return true;
     }
 }
