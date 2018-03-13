@@ -1,3 +1,7 @@
+0.1.5 (2018-03-13)
+- Fix: Fix random hanging and log transfer progress
+  - https://github.com/embulk/embulk-output-sftp/pull/45
+
 0.1.4 (2017-12-21)
 - Fix: Disable remote temporary file rename logic
   - https://github.com/embulk/embulk-output-sftp/pull/41
