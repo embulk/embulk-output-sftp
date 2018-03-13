@@ -2,7 +2,6 @@ package org.embulk.output.sftp;
 
 import com.google.common.base.Function;
 import com.google.common.base.Throwables;
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.FileSystemOptions;
@@ -16,11 +15,11 @@ import org.embulk.spi.util.RetryExecutor.RetryGiveupException;
 import org.embulk.spi.util.RetryExecutor.Retryable;
 import org.slf4j.Logger;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 
@@ -143,12 +142,32 @@ public class SftpUtils
                         @Override
                         public Void call() throws IOException
                         {
+                            long size = localTempFile.length();
+                            int step = 10; // 10% each step
+                            long bytesPerStep = size / step;
+                            long startTime = System.nanoTime();
+
                             try (FileObject remoteFile = newSftpFile(getSftpFileUri(remotePath));
-                                 BufferedOutputStream outputStream = new BufferedOutputStream(remoteFile.getContent().getOutputStream());
-                                 BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(localTempFile))
+                                    InputStream inputStream = new FileInputStream(localTempFile);
+                                    BufferedOutputStream outputStream = new BufferedOutputStream(remoteFile.getContent().getOutputStream());
                             ) {
-                                logger.info("new sftp file: {}", remoteFile.getPublicURIString());
-                                IOUtils.copy(inputStream, outputStream);
+                                logger.info("Uploading to remote sftp file ({} KB): {}", size / 1024, remoteFile.getPublicURIString());
+                                byte[] buffer = new byte[8 * 1024]; // 8KB ~ default buffer size of BufferedOutputStream
+                                int len = inputStream.read(buffer);
+                                long total = 0;
+                                int progress = 0;
+                                while (len != -1) {
+                                    outputStream.write(buffer, 0, len);
+                                    len = inputStream.read(buffer);
+                                    total += len;
+                                    if (total / bytesPerStep > progress) {
+                                        progress = (int) (total / bytesPerStep);
+                                        long transferRate = (long) (total / ((System.nanoTime() - startTime) / 1e9));
+                                        logger.info("Upload progress: {}% - {} KB - {} KB/s",
+                                                progress * step, total / 1024, transferRate / 1024);
+                                    }
+                                }
+                                logger.info("Upload completed.");
                             }
                             return null;
                         }
