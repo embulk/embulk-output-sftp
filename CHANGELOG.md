@@ -1,3 +1,6 @@
+0.1.6 (2018-03-13)
+- Fix: Change input stream buffer size to 4MB to fix hanging issue
+  - https://github.com/embulk/embulk-output-sftp/pull/46
 0.1.5 (2018-03-13)
 - Fix: Fix random hanging and log transfer progress
   - https://github.com/embulk/embulk-output-sftp/pull/45
