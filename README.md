@@ -23,6 +23,7 @@ Stores files on a SFTP Server
 - **path_prefix**: Prefix of output paths (string, required)
 - **file_ext**: Extension of output files (string, required)
 - **sequence_format**: Format for sequence part of output files (string, default: `".%03d.%02d"`)
+- **rename_file_after_upload**: Upload `file_ext` + ".tmp" first, then rename it after upload finish (boolean, default: `false`)
 
 ### Proxy configuration
 
