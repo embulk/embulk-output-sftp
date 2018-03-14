@@ -1,3 +1,8 @@
+0.1.7 (2018-03-14)
+- Enhance: Upload with ".tmp" suffix and rename file name after upload 
+  - https://github.com/embulk/embulk-output-sftp/pull/43
+  - https://github.com/embulk/embulk-output-sftp/pull/44
+
 0.1.6 (2018-03-13)
 - Fix: Change input stream buffer size to 4MB to fix hanging issue
   - https://github.com/embulk/embulk-output-sftp/pull/46
