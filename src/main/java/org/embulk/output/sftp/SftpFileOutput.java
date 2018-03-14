@@ -30,6 +30,7 @@ public class SftpFileOutput
     private final String pathPrefix;
     private final String sequenceFormat;
     private final String fileNameExtension;
+    private final boolean renameFileAfterUpload;
 
     private final int taskIndex;
     private final SftpUtils sftpUtils;
@@ -45,6 +46,7 @@ public class SftpFileOutput
         this.pathPrefix = task.getPathPrefix();
         this.sequenceFormat = task.getSequenceFormat();
         this.fileNameExtension = task.getFileNameExtension();
+        this.renameFileAfterUpload = task.getRenameFileAfterUpload();
         this.taskIndex = taskIndex;
         this.sftpUtils = new SftpUtils(task);
     }
@@ -84,12 +86,12 @@ public class SftpFileOutput
         closeCurrentFile();
         String fileName = getOutputFilePath();
         String temporaryFileName = fileName + temporaryFileSuffix;
-        /*
-          #37 causes permission failure while renaming remote file.
-          https://github.com/embulk/embulk-output-sftp/issues/40
-         */
-        //sftpUtils.uploadFile(tempFile, temporaryFileName);
-        sftpUtils.uploadFile(tempFile, fileName);
+        if (renameFileAfterUpload) {
+            sftpUtils.uploadFile(tempFile, temporaryFileName);
+        }
+        else {
+            sftpUtils.uploadFile(tempFile, fileName);
+        }
 
         Map<String, String> executedFiles = new HashMap<>();
         executedFiles.put("temporary_filename", temporaryFileName);
