@@ -5,7 +5,7 @@ import com.google.common.base.Throwables;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.FileSystemOptions;
-import org.apache.commons.vfs2.impl.StandardFileSystemManager;
+import org.apache.commons.vfs2.impl.DefaultFileSystemManager;
 import org.apache.commons.vfs2.provider.sftp.IdentityInfo;
 import org.apache.commons.vfs2.provider.sftp.SftpFileSystemConfigBuilder;
 import org.embulk.config.ConfigException;
@@ -32,22 +32,29 @@ import static org.embulk.spi.util.RetryExecutor.retryExecutor;
 public class SftpUtils
 {
     private final Logger logger = Exec.getLogger(SftpUtils.class);
-    private final StandardFileSystemManager manager;
+    private final DefaultFileSystemManager manager;
     private final FileSystemOptions fsOptions;
     private final String userInfo;
     private final String host;
     private final int port;
     private final int maxConnectionRetry;
 
-    private StandardFileSystemManager initializeStandardFileSystemManager()
+    private DefaultFileSystemManager initializeStandardFileSystemManager()
     {
         if (!logger.isDebugEnabled()) {
             // TODO: change logging format: org.apache.commons.logging.Log
             System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
         }
-        StandardFileSystemManager manager = new StandardFileSystemManager();
-        manager.setClassLoader(SftpUtils.class.getClassLoader());
+        /*
+         * We can use StandardFileSystemManager instead of DefaultFileSystemManager
+         * when Apache Commons VFS2 removes permission check logic when remote file renaming.
+         * https://github.com/embulk/embulk-output-sftp/issues/40
+         * https://github.com/embulk/embulk-output-sftp/pull/44
+         * https://issues.apache.org/jira/browse/VFS-590
+        */
+        DefaultFileSystemManager manager = new DefaultFileSystemManager();
         try {
+            manager.addProvider("sftp", new org.embulk.output.sftp.provider.sftp.SftpFileProvider());
             manager.init();
         }
         catch (FileSystemException e) {
