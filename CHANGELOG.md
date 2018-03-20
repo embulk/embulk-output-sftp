@@ -1,3 +1,6 @@
+0.1.8 (2018-03-20)
+- Change input stream buffer size to 32MB to reduce number of storage reads
+  - https://github.com/embulk/embulk-output-sftp/pull/47
 0.1.7 (2018-03-14)
 - Enhance: Upload with ".tmp" suffix and rename file name after upload 
   - https://github.com/embulk/embulk-output-sftp/pull/43
