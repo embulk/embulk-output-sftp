@@ -159,7 +159,7 @@ public class SftpUtils
                                     BufferedOutputStream outputStream = new BufferedOutputStream(remoteFile.getContent().getOutputStream());
                             ) {
                                 logger.info("Uploading to remote sftp file ({} KB): {}", size / 1024, remoteFile.getPublicURIString());
-                                byte[] buffer = new byte[4 * 1024 * 1024]; // 4MB buffer size
+                                byte[] buffer = new byte[32 * 1024 * 1024]; // 32MB buffer size
                                 int len = inputStream.read(buffer);
                                 long total = 0;
                                 int progress = 0;
