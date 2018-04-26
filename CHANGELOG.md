@@ -1,3 +1,6 @@
+0.1.9 (2018-04-26)
+- Enhance: Add validation for "host" and "proxy.host"
+  - https://github.com/embulk/embulk-output-sftp/pull/48
 0.1.8 (2018-03-20)
 - Change input stream buffer size to 32MB to reduce number of storage reads
   - https://github.com/embulk/embulk-output-sftp/pull/47
