@@ -184,6 +184,9 @@ public class SftpUtils
                         @Override
                         public boolean isRetryableException(Exception exception)
                         {
+                            if (exception instanceof ConfigException) {
+                                return false;
+                            }
                             return true;
                         }
 
