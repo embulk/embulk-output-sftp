@@ -35,6 +35,7 @@ public class SftpUtils
     private final DefaultFileSystemManager manager;
     private final FileSystemOptions fsOptions;
     private final String userInfo;
+    private final String user;
     private final String host;
     private final int port;
     private final int maxConnectionRetry;
@@ -127,6 +128,7 @@ public class SftpUtils
     {
         this.manager = initializeStandardFileSystemManager();
         this.userInfo = initializeUserInfo(task);
+        this.user = task.getUser();
         this.fsOptions = initializeFsOptions(task);
         this.host = task.getHost();
         this.port = task.getPort();
@@ -284,8 +286,8 @@ public class SftpUtils
             return new URI("sftp", userInfo, host, port, remoteFilePath, null, null);
         }
         catch (URISyntaxException e) {
-            logger.error(e.getMessage());
-            throw new ConfigException(e);
+            String message = String.format("URISyntaxException was thrown: Illegal character in sftp://%s:******@%s:%s%s", user, host, port, remoteFilePath);
+            throw new ConfigException(message);
         }
     }
 
