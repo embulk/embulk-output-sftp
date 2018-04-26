@@ -35,6 +35,7 @@ public class SftpUtils
     private final DefaultFileSystemManager manager;
     private final FileSystemOptions fsOptions;
     private final String userInfo;
+    private final String user;
     private final String host;
     private final int port;
     private final int maxConnectionRetry;
@@ -127,6 +128,7 @@ public class SftpUtils
     {
         this.manager = initializeStandardFileSystemManager();
         this.userInfo = initializeUserInfo(task);
+        this.user = task.getUser();
         this.fsOptions = initializeFsOptions(task);
         this.host = task.getHost();
         this.port = task.getPort();
@@ -182,6 +184,9 @@ public class SftpUtils
                         @Override
                         public boolean isRetryableException(Exception exception)
                         {
+                            if (exception instanceof ConfigException) {
+                                return false;
+                            }
                             return true;
                         }
 
@@ -264,14 +269,28 @@ public class SftpUtils
         }
     }
 
+    public void validateHost(PluginTask task)
+    {
+        if (task.getHost().contains("%s")) {
+            throw new ConfigException("'host' can't contain spaces");
+        }
+        getSftpFileUri("/");
+
+        if (task.getProxy().isPresent() && task.getProxy().get().getHost().isPresent()) {
+            if (task.getProxy().get().getHost().get().contains("%s")) {
+                throw new ConfigException("'proxy.host' can't contains spaces");
+            }
+        }
+    }
+
     private URI getSftpFileUri(String remoteFilePath)
     {
         try {
             return new URI("sftp", userInfo, host, port, remoteFilePath, null, null);
         }
         catch (URISyntaxException e) {
-            logger.error(e.getMessage());
-            throw new ConfigException(e);
+            String message = String.format("URISyntaxException was thrown: Illegal character in sftp://%s:******@%s:%s%s", user, host, port, remoteFilePath);
+            throw new ConfigException(message);
         }
     }
 

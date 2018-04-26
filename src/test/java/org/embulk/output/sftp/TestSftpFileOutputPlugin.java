@@ -247,6 +247,37 @@ public class TestSftpFileOutputPlugin
         }
     }
 
+    @Test(expected = ConfigException.class)
+    public void testInvalidHost()
+    {
+        // setting embulk config
+        final String pathPrefix = "/test/testUserPassword";
+        String configYaml = "" +
+                "type: sftp\n" +
+                "host: " + HOST + "\n" +
+                "user: " + USERNAME + "\n" +
+                "path_prefix: " + pathPrefix + "\n" +
+                "file_ext: txt\n" +
+                "formatter:\n" +
+                "  type: csv\n" +
+                "  newline: CRLF\n" +
+                "  newline_in_field: LF\n" +
+                "  header_line: true\n" +
+                "  charset: UTF-8\n" +
+                "  quote_policy: NONE\n" +
+                "  quote: \"\\\"\"\n" +
+                "  escape: \"\\\\\"\n" +
+                "  null_string: \"\"\n" +
+                "  default_timezone: 'UTC'";
+
+        ConfigSource config = getConfigFromYaml(configYaml);
+        config.set("host", HOST + " ");
+        PluginTask task = config.loadConfig(PluginTask.class);
+
+        SftpUtils utils = new SftpUtils(task);
+        utils.validateHost(task);
+    }
+
     @Test
     public void testConfigValuesIncludingDefault()
     {

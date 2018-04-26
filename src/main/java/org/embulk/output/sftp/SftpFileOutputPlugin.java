@@ -81,6 +81,16 @@ public class SftpFileOutputPlugin
             FileOutputPlugin.Control control)
     {
         PluginTask task = config.loadConfig(PluginTask.class);
+        SftpUtils sftpUtils = null;
+        try {
+            sftpUtils = new SftpUtils(task);
+            sftpUtils.validateHost(task);
+        }
+        finally {
+            if (sftpUtils != null) {
+                sftpUtils.close();
+            }
+        }
 
         // retryable (idempotent) output:
         // return resume(task.dump(), taskCount, control);
