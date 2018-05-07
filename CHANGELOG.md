@@ -1,3 +1,6 @@
+0.1.10 (2018-05-07)
+- Fix: Use java.util.regex.Pattern for host name validation
+  - https://github.com/embulk/embulk-output-sftp/pull/49
 0.1.9 (2018-04-26)
 - Enhance: Add validation for "host" and "proxy.host"
   - https://github.com/embulk/embulk-output-sftp/pull/48
