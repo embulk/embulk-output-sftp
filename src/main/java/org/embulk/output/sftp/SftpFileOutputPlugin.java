@@ -13,6 +13,8 @@ import org.embulk.spi.FileOutputPlugin;
 import org.embulk.spi.TransactionalFileOutput;
 import org.embulk.spi.unit.LocalFile;
 
+import javax.validation.constraints.Max;
+import javax.validation.constraints.Min;
 import java.util.List;
 import java.util.Map;
 
@@ -54,7 +56,7 @@ public class SftpFileOutputPlugin
         public int getSftpConnectionTimeout();
 
         @Config("max_connection_retry")
-        @ConfigDefault("5") // 5 times retry to connect sftp server if failed.
+        @ConfigDefault("7") // 7 times retry to connect sftp server if failed.
         public int getMaxConnectionRetry();
 
         @Config("path_prefix")
@@ -74,6 +76,17 @@ public class SftpFileOutputPlugin
         @Config("rename_file_after_upload")
         @ConfigDefault("false")
         public Boolean getRenameFileAfterUpload();
+
+        // if `false`, plugin will use remote file as buffer
+        @Config("local_buffer")
+        @ConfigDefault("true")
+        public Boolean getLocalBuffer();
+
+        @Min(50 * 1024 * 1024) // 50MiB
+        @Max(10L * 1024 * 1024 * 1024) // 10GiB
+        @Config("local_buffer_size")
+        @ConfigDefault("2147483648") // 2GiB
+        public long getLocalBufferSize();
     }
 
     @Override
@@ -141,6 +154,9 @@ public class SftpFileOutputPlugin
     public TransactionalFileOutput open(TaskSource taskSource, final int taskIndex)
     {
         final PluginTask task = taskSource.loadTask(PluginTask.class);
-        return new SftpFileOutput(task, taskIndex);
+        if (task.getLocalBuffer()) {
+            return new SftpLocalFileOutput(task, taskIndex);
+        }
+        return new SftpRemoteFileOutput(task, taskIndex);
     }
 }
