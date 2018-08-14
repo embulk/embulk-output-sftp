@@ -23,7 +23,7 @@ public class SftpRemoteFileOutput extends SftpLocalFileOutput
         try {
             String fileName = getOutputFilePath();
             // always write to remote .tmp first
-            String temporaryFileName = fileName + temporaryFileSuffix;
+            String temporaryFileName = fileName + TMP_SUFFIX;
             // resolve remote file & open output stream
             FileObject tempFile = sftpUtils.newSftpFile(sftpUtils.getSftpFileUri(temporaryFileName));
             // this is where it's different from {@code SftpLocalFileOutput}
@@ -42,7 +42,7 @@ public class SftpRemoteFileOutput extends SftpLocalFileOutput
         // closing remote output stream is enough
         closeCurrentFile();
         String fileName = getOutputFilePath();
-        String temporaryFileName = fileName + temporaryFileSuffix;
+        String temporaryFileName = fileName + TMP_SUFFIX;
 
         fileList.add(fileReport(temporaryFileName, fileName));
         fileIndex++;
