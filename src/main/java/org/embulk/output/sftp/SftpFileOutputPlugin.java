@@ -78,15 +78,15 @@ public class SftpFileOutputPlugin
         public Boolean getRenameFileAfterUpload();
 
         // if `false`, plugin will use remote file as buffer
-        @Config("local_buffer")
+        @Config("local_buffering")
         @ConfigDefault("true")
-        public Boolean getLocalBuffer();
+        public Boolean getLocalBuffering();
 
-        @Min(50 * 1024 * 1024) // 50MiB
+        @Min(50L * 1024 * 1024) // 50MiB
         @Max(10L * 1024 * 1024 * 1024) // 10GiB
-        @Config("local_buffer_size")
+        @Config("temp_file_threshold")
         @ConfigDefault("2147483648") // 2GiB
-        public long getLocalBufferSize();
+        public long getTempFileThreshold();
     }
 
     @Override
@@ -154,7 +154,7 @@ public class SftpFileOutputPlugin
     public TransactionalFileOutput open(TaskSource taskSource, final int taskIndex)
     {
         final PluginTask task = taskSource.loadTask(PluginTask.class);
-        if (task.getLocalBuffer()) {
+        if (task.getLocalBuffering()) {
             return new SftpLocalFileOutput(task, taskIndex);
         }
         return new SftpRemoteFileOutput(task, taskIndex);
