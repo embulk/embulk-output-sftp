@@ -26,13 +26,18 @@ import static org.embulk.output.sftp.SftpFileOutputPlugin.PluginTask;
 public class SftpLocalFileOutput
         implements FileOutput, TransactionalFileOutput
 {
+    // to make it clear that it is a constant
+    static final String TMP_SUFFIX = ".tmp";
+
     final Logger logger = Exec.getLogger(getClass());
     private final String pathPrefix;
     private final String sequenceFormat;
     private final String fileNameExtension;
     private boolean renameFileAfterUpload;
     // flush will be triggered when local temp file reaches this threshold
-    private final long localBufferSize;
+    private final long threshold;
+    private boolean appending = false;
+    private long bufLen = 0L;
 
     private final int taskIndex;
     final SftpUtils sftpUtils;
@@ -40,8 +45,6 @@ public class SftpLocalFileOutput
     private File tempFile;
     BufferedOutputStream localOutput = null;
     List<Map<String, String>> fileList = new ArrayList<>();
-
-    final String temporaryFileSuffix = ".tmp";
 
     SftpLocalFileOutput(PluginTask task, int taskIndex)
     {
@@ -51,7 +54,7 @@ public class SftpLocalFileOutput
         this.renameFileAfterUpload = task.getRenameFileAfterUpload();
         this.taskIndex = taskIndex;
         this.sftpUtils = new SftpUtils(task);
-        this.localBufferSize = task.getLocalBufferSize();
+        this.threshold = task.getTempFileThreshold();
     }
 
     @Override
@@ -73,16 +76,21 @@ public class SftpLocalFileOutput
     public void add(final Buffer buffer)
     {
         try {
-            if (tempFile.length() + buffer.limit() > localBufferSize) {
+            final int len = buffer.limit();
+            if (bufLen + len > threshold) {
                 // if we have to split into multiple uploads (append mode)
-                // have to use `.tmp` filename and switch on `renameFileAfterUpload`
+                // we have to use `.tmp` filename (ie. turn on `renameFileAfterUpload`)
                 renameFileAfterUpload = true;
                 // ignore returned value, as we don't need the report here
                 flush();
+                // toggle `appending`
+                appending = true;
                 // reset output stream (overwrite local temp file)
                 localOutput = new BufferedOutputStream(new FileOutputStream(tempFile));
+                bufLen = 0L;
             }
-            localOutput.write(buffer.array(), buffer.offset(), buffer.limit());
+            localOutput.write(buffer.array(), buffer.offset(), len);
+            bufLen += len;
         }
         catch (IOException ex) {
             throw Throwables.propagate(ex);
@@ -96,7 +104,13 @@ public class SftpLocalFileOutput
     public void finish()
     {
         // collect report of last flush
-        fileList.add(flush());
+        try {
+            fileList.add(flush());
+        }
+        catch (IOException e) {
+            logger.error("Failed to (final) flush");
+            throw Throwables.propagate(e);
+        }
         fileIndex++;
     }
 
@@ -111,6 +125,15 @@ public class SftpLocalFileOutput
     @Override
     public void abort()
     {
+        // delete incomplete files
+        String fileName = getOutputFilePath();
+        String temporaryFileName = fileName + TMP_SUFFIX;
+        if (renameFileAfterUpload) {
+            sftpUtils.deleteFile(temporaryFileName);
+        }
+        else {
+            sftpUtils.deleteFile(fileName);
+        }
     }
 
     @Override
@@ -138,16 +161,16 @@ public class SftpLocalFileOutput
         return pathPrefix + String.format(sequenceFormat, taskIndex, fileIndex) + fileNameExtension;
     }
 
-    private Map<String, String> flush()
+    private Map<String, String> flush() throws IOException
     {
         closeCurrentFile();
         String fileName = getOutputFilePath();
-        String temporaryFileName = fileName + temporaryFileSuffix;
+        String temporaryFileName = fileName + TMP_SUFFIX;
         if (renameFileAfterUpload) {
-            sftpUtils.uploadFile(tempFile, temporaryFileName, true);
+            sftpUtils.uploadFile(tempFile, temporaryFileName, appending);
         }
         else {
-            sftpUtils.uploadFile(tempFile, fileName, false);
+            sftpUtils.uploadFile(tempFile, fileName, appending);
         }
         return fileReport(temporaryFileName, fileName);
     }
