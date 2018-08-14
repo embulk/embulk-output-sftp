@@ -9,13 +9,14 @@ import org.apache.commons.vfs2.impl.DefaultFileSystemManager;
 import org.apache.commons.vfs2.provider.sftp.IdentityInfo;
 import org.apache.commons.vfs2.provider.sftp.SftpFileSystemConfigBuilder;
 import org.embulk.config.ConfigException;
+import org.embulk.output.sftp.utils.DefaultRetry;
+import org.embulk.output.sftp.utils.TimedCallable;
 import org.embulk.spi.Exec;
 import org.embulk.spi.unit.LocalFile;
 import org.embulk.spi.util.RetryExecutor.RetryGiveupException;
 import org.embulk.spi.util.RetryExecutor.Retryable;
 import org.slf4j.Logger;
 
-import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
@@ -24,13 +25,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
 
 import static org.embulk.output.sftp.SftpFileOutputPlugin.PluginTask;
@@ -41,10 +36,8 @@ import static org.embulk.spi.util.RetryExecutor.retryExecutor;
  */
 public class SftpUtils
 {
-    private static final ExecutorService THREAD_POOL = Executors.newCachedThreadPool();
-
     private final Logger logger = Exec.getLogger(SftpUtils.class);
-    private DefaultFileSystemManager manager;
+    private final DefaultFileSystemManager manager;
     private final FileSystemOptions fsOptions;
     private final String userInfo;
     private final String user;
@@ -152,150 +145,98 @@ public class SftpUtils
         manager.close();
     }
 
-    public void uploadFile(final File localTempFile, final String remotePath)
+    /**
+     * IMPORTANT: this method now behaves differently, it can be used to append to remote file
+     * Hence, to preserve idempotence, it must not retry here
+     * If upload is failed, throw exception to retry the whole process
+     *
+     * @param localTempFile File    Local temp file to be uploaded, could be whole or partial file
+     * @param remotePath    String  Remote path to be uploaded
+     * @param append        boolean If {@code true}, it will append to existing remote file, instead of overwriting
+     */
+    void uploadFile(final File localTempFile, final String remotePath, final boolean append) throws IOException
     {
-        uploadFile(localTempFile, remotePath, false);
-    }
+        long size = localTempFile.length();
+        int step = 10; // 10% each step
+        long bytesPerStep = size / step;
+        long startTime = System.nanoTime();
 
-    Void uploadFile(final File localTempFile, final String remotePath, final boolean append)
-    {
-        try {
-            return retryExecutor()
-                    .withRetryLimit(maxConnectionRetry)
-                    .withInitialRetryWait(120 * 1000)
-                    .withMaxRetryWait(3600 * 1000)
-                    .runInterruptible(new Retryable<Void>()
-                    {
-                        @Override
-                        public Void call() throws IOException
-                        {
-                            long size = localTempFile.length();
-                            int step = 10; // 10% each step
-                            long bytesPerStep = size / step;
-                            long startTime = System.nanoTime();
+        String taskName = String.format("SFTP resolve file '%s'", remotePath);
+        final FileObject remoteFile = withRetry(new DefaultRetry<FileObject>(taskName)
+        {
+            @Override
+            public FileObject call() throws Exception
+            {
+                return newSftpFile(getSftpFileUri(remotePath));
+            }
+        });
 
-                            final FileObject remoteFile = newSftpFile(getSftpFileUri(remotePath));
-                            // output stream is already a BufferedOutputStream, no need to wrap
-                            final OutputStream outputStream = remoteFile.getContent().getOutputStream(append);
-                            try (InputStream inputStream = new FileInputStream(localTempFile)) {
-                                logger.info("Uploading to remote sftp file ({} KB): {}", size / 1024, remoteFile.getPublicURIString());
-                                final byte[] buffer = new byte[32 * 1024 * 1024]; // 32MB buffer size
-                                int len = inputStream.read(buffer);
-                                long total = 0;
-                                int progress = 0;
-                                while (len != -1) {
-                                    timedWrite(outputStream, buffer, len);
-                                    len = inputStream.read(buffer);
-                                    total += len;
-                                    if (total / bytesPerStep > progress) {
-                                        progress = (int) (total / bytesPerStep);
-                                        long transferRate = (long) (total / ((System.nanoTime() - startTime) / 1e9));
-                                        logger.info("Upload progress: {}% - {} KB - {} KB/s",
-                                                progress * step, total / 1024, transferRate / 1024);
-                                    }
-                                }
-                                logger.info("Upload completed.");
-                            }
-                            catch (Exception e) {
-                                // why not try-with-resource?
-                                // because it will hang trying to flush/close resource when TimeoutException
-                                timedClose(outputStream);
-                                timedClose(remoteFile);
-                                throw e;
-                            }
-                            return null;
-                        }
+        // output stream is already a BufferedOutputStream, no need to wrap
+        taskName = String.format("SFTP open stream in mode '%s'", append ? "append" : "overwrite");
+        final OutputStream outputStream = withRetry(new DefaultRetry<OutputStream>(taskName)
+        {
+            @Override
+            public OutputStream call() throws Exception
+            {
+                return remoteFile.getContent().getOutputStream(append);
+            }
+        });
 
-                        @Override
-                        public boolean isRetryableException(Exception exception)
-                        {
-                            if (exception instanceof ConfigException) {
-                                return false;
-                            }
-                            return true;
-                        }
-
-                        @Override
-                        public void onRetry(Exception exception, int retryCount, int retryLimit, int retryWait) throws RetryGiveupException
-                        {
-                            String message = String.format("SFTP output failed. Retrying %d/%d after %d seconds. Message: %s",
-                                    retryCount, retryLimit, retryWait / 1000, exception.getMessage());
-                            if (retryCount % 3 == 0) {
-                                logger.warn(message, exception);
-                            }
-                            else {
-                                logger.warn(message);
-                            }
-                            logger.info("Re-initializing FileSystemManager ... ");
-                            manager.close();
-                            manager = initializeStandardFileSystemManager();
-                            logger.info("Re-initializing FileSystemManager completed.");
-                        }
-
-                        @Override
-                        public void onGiveup(Exception firstException, Exception lastException) throws RetryGiveupException
-                        {
-                        }
-                    });
+        // start uploading
+        try (InputStream inputStream = new FileInputStream(localTempFile)) {
+            logger.info("Uploading to remote sftp file ({} KB): {}", size / 1024, remoteFile.getPublicURIString());
+            final byte[] buffer = new byte[32 * 1024 * 1024]; // 32MB buffer size
+            int len = inputStream.read(buffer);
+            long total = 0;
+            int progress = 0;
+            while (len != -1) {
+                timedWrite(outputStream, buffer, len);
+                len = inputStream.read(buffer);
+                total += len;
+                if (total / bytesPerStep > progress) {
+                    progress = (int) (total / bytesPerStep);
+                    long transferRate = (long) (total / ((System.nanoTime() - startTime) / 1e9));
+                    logger.info("Upload progress: {}% - {} KB - {} KB/s",
+                            progress * step, total / 1024, transferRate / 1024);
+                }
+            }
+            logger.info("Upload completed.");
         }
-        catch (RetryGiveupException ex) {
-            throw Throwables.propagate(ex.getCause());
-        }
-        catch (InterruptedException ex) {
-            throw Throwables.propagate(ex);
+        finally {
+            // why not try-with-resource?
+            // because it will hang trying to flush/close resource when TimeoutException
+            timedClose(outputStream);
+            timedClose(remoteFile);
         }
     }
 
     public Void renameFile(final String before, final String after)
     {
+        return withRetry(new DefaultRetry<Void>("SFTP rename remote file")
+        {
+            @Override
+            public Void call() throws IOException
+            {
+                FileObject previousFile = manager.resolveFile(getSftpFileUri(before).toString(), fsOptions);
+                FileObject afterFile = manager.resolveFile(getSftpFileUri(after).toString(), fsOptions);
+                previousFile.moveTo(afterFile);
+                logger.info("renamed remote file: {} to {}", previousFile.getPublicURIString(), afterFile.getPublicURIString());
+
+                return null;
+            }
+        });
+    }
+
+    public void deleteFile(final String remotePath)
+    {
         try {
-            return retryExecutor()
-                    .withRetryLimit(maxConnectionRetry)
-                    .withInitialRetryWait(500)
-                    .withMaxRetryWait(30 * 1000)
-                    .runInterruptible(new Retryable<Void>()
-                    {
-                        @Override
-                        public Void call() throws IOException
-                        {
-                            FileObject previousFile = manager.resolveFile(getSftpFileUri(before).toString(), fsOptions);
-                            FileObject afterFile = manager.resolveFile(getSftpFileUri(after).toString(), fsOptions);
-                            previousFile.moveTo(afterFile);
-                            logger.info("renamed remote file: {} to {}", previousFile.getPublicURIString(), afterFile.getPublicURIString());
-
-                            return null;
-                        }
-
-                        @Override
-                        public boolean isRetryableException(Exception exception)
-                        {
-                            return true;
-                        }
-
-                        @Override
-                        public void onRetry(Exception exception, int retryCount, int retryLimit, int retryWait) throws RetryGiveupException
-                        {
-                            String message = String.format("SFTP rename remote file failed. Retrying %d/%d after %d seconds. Message: %s",
-                                    retryCount, retryLimit, retryWait / 1000, exception.getMessage());
-                            if (retryCount % 3 == 0) {
-                                logger.warn(message, exception);
-                            }
-                            else {
-                                logger.warn(message);
-                            }
-                        }
-
-                        @Override
-                        public void onGiveup(Exception firstException, Exception lastException) throws RetryGiveupException
-                        {
-                        }
-                    });
+            FileObject file = manager.resolveFile(getSftpFileUri(remotePath).toString(), fsOptions);
+            if (file.exists()) {
+                file.delete();
+            }
         }
-        catch (RetryGiveupException ex) {
-            throw Throwables.propagate(ex.getCause());
-        }
-        catch (InterruptedException ex) {
-            throw Throwables.propagate(ex);
+        catch (FileSystemException e) {
+            logger.warn("Failed to delete remote file '{}': {}", remotePath, e.getMessage());
         }
     }
 
@@ -352,61 +293,54 @@ public class SftpUtils
         };
     }
 
+    private <T> T withRetry(Retryable<T> call)
+    {
+        try {
+            return retryExecutor()
+                    .withRetryLimit(maxConnectionRetry)
+                    .withInitialRetryWait(500)
+                    .withMaxRetryWait(30 * 1000)
+                    .runInterruptible(call);
+        }
+        catch (RetryGiveupException ex) {
+            throw Throwables.propagate(ex.getCause());
+        }
+        catch (InterruptedException ex) {
+            throw Throwables.propagate(ex);
+        }
+    }
+
     private void timedWrite(final OutputStream stream, final byte[] buf, final int len) throws IOException
     {
-        FutureTask<Integer> task = new FutureTask<>(new Callable<Integer>()
-        {
-            public Integer call() throws Exception
-            {
-                if (Thread.interrupted()) {
-                    // this is not actual exit code
-                    // we inverse exit code because initial value of int is 0
-                    return 0;
-                }
-                stream.write(buf, 0, len);
-                return 1;
-            }
-        });
         try {
-            int returnCode = timedCall(task, 120, TimeUnit.SECONDS);
-            if (returnCode != 1) {
-                throw new IOException("Buffer couldn't be uploaded properly, retry from beginning");
-            }
+            new TimedCallable<Void>()
+            {
+                @Override
+                public Void call() throws Exception
+                {
+                    stream.write(buf, 0, len);
+                    return null;
+                }
+            }.call(120, TimeUnit.SECONDS);
         }
         catch (Exception e) {
             logger.warn("Failed to write buffer, retrying ...");
-            task.cancel(true);
             throw new IOException(e);
         }
     }
 
     private void timedClose(final Closeable resource)
     {
-        try {
-            timedCall(new FutureTask<>(new Callable<Void>()
+        new TimedCallable<Void>()
+        {
+            @Override
+            public Void call() throws Exception
             {
-                @Override
-                public Void call() throws Exception
-                {
-                    if (resource != null) {
-                        resource.close();
-                    }
-                    return null;
+                if (resource != null) {
+                    resource.close();
                 }
-            }), 60, TimeUnit.SECONDS);
-        }
-        catch (InterruptedException | ExecutionException e) {
-            logger.warn("Failed to close resource: {}", e.getMessage());
-        }
-        catch (TimeoutException e) {
-            logger.info("Timed out while closing resource");
-        }
-    }
-
-    private static <T> T timedCall(FutureTask<T> task, long timeout, TimeUnit timeUnit)
-            throws InterruptedException, ExecutionException, TimeoutException
-    {
-        THREAD_POOL.execute(task);
-        return task.get(timeout, timeUnit);
+                return null;
+            }
+        }.callNonInterruptible(60, TimeUnit.SECONDS);
     }
 }
