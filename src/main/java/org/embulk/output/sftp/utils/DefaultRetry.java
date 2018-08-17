@@ -1,5 +1,6 @@
 package org.embulk.output.sftp.utils;
 
+import com.jcraft.jsch.JSchException;
 import org.embulk.spi.Exec;
 import org.embulk.spi.util.RetryExecutor;
 import org.slf4j.Logger;
@@ -18,7 +19,7 @@ public abstract class DefaultRetry<T> implements RetryExecutor.Retryable<T>
     @Override
     public boolean isRetryableException(Exception exception)
     {
-        return true;
+        return !hasRootCauseAuthFail(exception);
     }
 
     @Override
@@ -37,5 +38,18 @@ public abstract class DefaultRetry<T> implements RetryExecutor.Retryable<T>
     @Override
     public void onGiveup(Exception firstException, Exception lastException)
     {
+    }
+
+    private static boolean isAuthFail(Throwable e)
+    {
+        return e instanceof JSchException && "USERAUTH fail".equals(e.getMessage());
+    }
+
+    private static boolean hasRootCauseAuthFail(Throwable e)
+    {
+        while (e != null && !isAuthFail(e)) {
+            e = e.getCause();
+        }
+        return e != null;
     }
 }
