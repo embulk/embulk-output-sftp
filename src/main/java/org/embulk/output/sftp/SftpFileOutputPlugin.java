@@ -56,7 +56,7 @@ public class SftpFileOutputPlugin
         public int getSftpConnectionTimeout();
 
         @Config("max_connection_retry")
-        @ConfigDefault("7") // 7 times retry to connect sftp server if failed.
+        @ConfigDefault("5") // 5 times retry to connect sftp server if failed.
         public int getMaxConnectionRetry();
 
         @Config("path_prefix")
