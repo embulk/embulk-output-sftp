@@ -1,6 +1,5 @@
 package org.embulk.output.sftp.utils;
 
-import com.google.common.base.Optional;
 import org.embulk.spi.Exec;
 import org.slf4j.Logger;
 
@@ -23,7 +22,7 @@ public abstract class TimedCallable<V> implements Callable<V>
             return call(timeout, timeUnit);
         }
         catch (Exception e) {
-            logger.warn("Failed with exception {}: {}", e.getClass(), Optional.fromNullable(e.getMessage()).or(""));
+            logger.warn("Time-out call failed, ignore and resume", e);
             return null;
         }
     }
@@ -36,10 +35,8 @@ public abstract class TimedCallable<V> implements Callable<V>
             THREAD_POOL.execute(task);
             return task.get(timeout, timeUnit);
         }
-        catch (TimeoutException e) {
-            logger.warn("Execution timed out, re-throwing ...");
+        finally {
             task.cancel(true);
-            throw e;
         }
     }
 }
