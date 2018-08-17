@@ -11,13 +11,13 @@ import org.apache.commons.vfs2.provider.sftp.SftpFileSystemConfigBuilder;
 import org.embulk.config.ConfigException;
 import org.embulk.output.sftp.utils.DefaultRetry;
 import org.embulk.output.sftp.utils.TimedCallable;
+import org.embulk.output.sftp.utils.TimeoutCloser;
 import org.embulk.spi.Exec;
 import org.embulk.spi.unit.LocalFile;
 import org.embulk.spi.util.RetryExecutor.RetryGiveupException;
 import org.embulk.spi.util.RetryExecutor.Retryable;
 import org.slf4j.Logger;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -145,42 +145,39 @@ public class SftpUtils
         manager.close();
     }
 
+    void uploadFile(final File localTempFile, final String remotePath)
+    {
+        withRetry(new DefaultRetry<Void>(String.format("SFTP upload file '%s'", remotePath))
+        {
+            @Override
+            public Void call() throws Exception
+            {
+                final FileObject remoteFile = newSftpFile(getSftpFileUri(remotePath));
+                final OutputStream outputStream = openStream(remoteFile);
+                // When channel is broken, closing resource may hang, hence the time-out wrapper
+                // Note: closing FileObject will also close OutputStream
+                try (TimeoutCloser ignored = new TimeoutCloser(remoteFile)) {
+                    appendFile(localTempFile, remoteFile, outputStream);
+                    return null;
+                }
+            }
+        });
+    }
+
     /**
-     * IMPORTANT: this method now behaves differently, it can be used to append to remote file
-     * Hence, to preserve idempotence, it must not retry here
-     * If upload is failed, throw exception to retry the whole process
+     * This method won't close outputStream, outputStream is intended to be reused
      *
-     * @param localTempFile File    Local temp file to be uploaded, could be whole or partial file
-     * @param remotePath    String  Remote path to be uploaded
-     * @param append        boolean If {@code true}, it will append to existing remote file, instead of overwriting
+     * @param localTempFile
+     * @param remoteFile
+     * @param outputStream
+     * @throws IOException
      */
-    void uploadFile(final File localTempFile, final String remotePath, final boolean append) throws IOException
+    void appendFile(final File localTempFile, final FileObject remoteFile, final OutputStream outputStream) throws IOException
     {
         long size = localTempFile.length();
         int step = 10; // 10% each step
         long bytesPerStep = size / step;
         long startTime = System.nanoTime();
-
-        String taskName = String.format("SFTP resolve file '%s'", remotePath);
-        final FileObject remoteFile = withRetry(new DefaultRetry<FileObject>(taskName)
-        {
-            @Override
-            public FileObject call() throws Exception
-            {
-                return newSftpFile(getSftpFileUri(remotePath));
-            }
-        });
-
-        // output stream is already a BufferedOutputStream, no need to wrap
-        taskName = String.format("SFTP open stream in mode '%s'", append ? "append" : "overwrite");
-        final OutputStream outputStream = withRetry(new DefaultRetry<OutputStream>(taskName)
-        {
-            @Override
-            public OutputStream call() throws Exception
-            {
-                return remoteFile.getContent().getOutputStream(append);
-            }
-        });
 
         // start uploading
         try (InputStream inputStream = new FileInputStream(localTempFile)) {
@@ -202,12 +199,6 @@ public class SftpUtils
             }
             logger.info("Upload completed.");
         }
-        finally {
-            // why not try-with-resource?
-            // because it will hang trying to flush/close resource when TimeoutException
-            timedClose(outputStream);
-            timedClose(remoteFile);
-        }
     }
 
     public Void renameFile(final String before, final String after)
@@ -217,8 +208,8 @@ public class SftpUtils
             @Override
             public Void call() throws IOException
             {
-                FileObject previousFile = manager.resolveFile(getSftpFileUri(before).toString(), fsOptions);
-                FileObject afterFile = manager.resolveFile(getSftpFileUri(after).toString(), fsOptions);
+                FileObject previousFile = resolve(before);
+                FileObject afterFile = resolve(after);
                 previousFile.moveTo(afterFile);
                 logger.info("renamed remote file: {} to {}", previousFile.getPublicURIString(), afterFile.getPublicURIString());
 
@@ -253,6 +244,33 @@ public class SftpUtils
                 throw new ConfigException("'proxy.host' can't contains spaces");
             }
         }
+    }
+
+    FileObject resolve(final String remoteFilePath)
+    {
+        final String taskName = String.format("SFTP resolve file '%s'", remoteFilePath);
+        return withRetry(new DefaultRetry<FileObject>(taskName)
+        {
+            @Override
+            public FileObject call() throws Exception
+            {
+                return manager.resolveFile(getSftpFileUri(remoteFilePath).toString(), fsOptions);
+            }
+        });
+    }
+
+    OutputStream openStream(final FileObject remoteFile)
+    {
+        // output stream is already a BufferedOutputStream, no need to wrap
+        final String taskName = "SFTP open stream";
+        return withRetry(new DefaultRetry<OutputStream>(taskName)
+        {
+            @Override
+            public OutputStream call() throws Exception
+            {
+                return remoteFile.getContent().getOutputStream();
+            }
+        });
     }
 
     URI getSftpFileUri(String remoteFilePath)
@@ -321,26 +339,11 @@ public class SftpUtils
                     stream.write(buf, 0, len);
                     return null;
                 }
-            }.call(120, TimeUnit.SECONDS);
+            }.call(300, TimeUnit.SECONDS);  // 5 mins
         }
         catch (Exception e) {
-            logger.warn("Failed to write buffer, retrying ...");
+            logger.warn("Failed to write buffer, aborting ... ");
             throw new IOException(e);
         }
-    }
-
-    private void timedClose(final Closeable resource)
-    {
-        new TimedCallable<Void>()
-        {
-            @Override
-            public Void call() throws Exception
-            {
-                if (resource != null) {
-                    resource.close();
-                }
-                return null;
-            }
-        }.callNonInterruptible(60, TimeUnit.SECONDS);
     }
 }
