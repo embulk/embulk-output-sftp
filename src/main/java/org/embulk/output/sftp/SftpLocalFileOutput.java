@@ -2,7 +2,9 @@ package org.embulk.output.sftp;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
+import org.apache.commons.vfs2.FileObject;
 import org.embulk.config.TaskReport;
+import org.embulk.output.sftp.utils.TimeoutCloser;
 import org.embulk.spi.Buffer;
 import org.embulk.spi.Exec;
 import org.embulk.spi.FileOutput;
@@ -14,6 +16,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -34,10 +37,6 @@ public class SftpLocalFileOutput
     private final String sequenceFormat;
     private final String fileNameExtension;
     private boolean renameFileAfterUpload;
-    // flush will be triggered when local temp file reaches this threshold
-    private final long threshold;
-    private boolean appending = false;
-    private long bufLen = 0L;
 
     private final int taskIndex;
     final SftpUtils sftpUtils;
@@ -45,6 +44,13 @@ public class SftpLocalFileOutput
     private File tempFile;
     BufferedOutputStream localOutput = null;
     List<Map<String, String>> fileList = new ArrayList<>();
+
+    /* for file splitting purpose */
+    private final long threshold; // to flush (upload to server)
+    private boolean appending = false; // when local file exceeds threshold
+    private FileObject remoteFile;
+    private OutputStream remoteOutput; // to keep output stream open during append mode
+    long bufLen = 0L; // local temp file size
 
     SftpLocalFileOutput(PluginTask task, int taskIndex)
     {
@@ -78,13 +84,10 @@ public class SftpLocalFileOutput
         try {
             final int len = buffer.limit();
             if (bufLen + len > threshold) {
-                // if we have to split into multiple uploads (append mode)
-                // we have to use `.tmp` filename (ie. turn on `renameFileAfterUpload`)
-                renameFileAfterUpload = true;
-                // ignore returned value, as we don't need the report here
-                flush();
-                // toggle `appending`
+                // into 'append' mode
                 appending = true;
+                flush();
+
                 // reset output stream (overwrite local temp file)
                 localOutput = new BufferedOutputStream(new FileOutputStream(tempFile));
                 bufLen = 0L;
@@ -103,12 +106,27 @@ public class SftpLocalFileOutput
     @Override
     public void finish()
     {
-        // collect report of last flush
+        closeCurrentFile();
         try {
-            fileList.add(flush());
+            // collect report of last flush
+            Map<String, String> fileReport = flush();
+            fileList.add(fileReport);
+            if (remoteFile != null) {
+                new TimeoutCloser(remoteFile).close();
+                remoteFile = null;
+                remoteOutput = null;
+            }
+            // if input config is not `renameFileAfterUpload`
+            // and file is being split, we have to rename it here
+            // otherwise, when it exits, it won't rename
+            if (!renameFileAfterUpload && appending) {
+                sftpUtils.renameFile(
+                        fileReport.get("temporary_filename"),
+                        fileReport.get("real_filename")
+                );
+            }
         }
         catch (IOException e) {
-            logger.error("Failed to (final) flush");
             throw Throwables.propagate(e);
         }
         fileIndex++;
@@ -146,13 +164,14 @@ public class SftpLocalFileOutput
 
     void closeCurrentFile()
     {
-        if (localOutput != null) {
-            try {
+        try {
+            if (localOutput != null) {
                 localOutput.close();
+                localOutput = null;
             }
-            catch (IOException ex) {
-                throw Throwables.propagate(ex);
-            }
+        }
+        catch (IOException ex) {
+            throw Throwables.propagate(ex);
         }
     }
 
@@ -166,11 +185,21 @@ public class SftpLocalFileOutput
         closeCurrentFile();
         String fileName = getOutputFilePath();
         String temporaryFileName = fileName + TMP_SUFFIX;
-        if (renameFileAfterUpload) {
-            sftpUtils.uploadFile(tempFile, temporaryFileName, appending);
+        if (appending) {
+            // open and keep stream open
+            if (remoteFile == null && remoteOutput == null) {
+                remoteFile = sftpUtils.resolve(temporaryFileName);
+                remoteOutput = sftpUtils.openStream(remoteFile);
+            }
+            sftpUtils.appendFile(tempFile, remoteFile, remoteOutput);
         }
         else {
-            sftpUtils.uploadFile(tempFile, fileName, appending);
+            if (renameFileAfterUpload) {
+                sftpUtils.uploadFile(tempFile, temporaryFileName);
+            }
+            else {
+                sftpUtils.uploadFile(tempFile, fileName);
+            }
         }
         return fileReport(temporaryFileName, fileName);
     }
