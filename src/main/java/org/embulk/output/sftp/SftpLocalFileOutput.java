@@ -126,6 +126,7 @@ public class SftpLocalFileOutput
     public void close()
     {
         closeCurrentFile();
+        closeRemoteFile();
         // TODO
         sftpUtils.close();
     }
@@ -169,12 +170,12 @@ public class SftpLocalFileOutput
             new TimeoutCloser(remoteFile).close();
             remoteFile = null;
             remoteOutput = null;
-        }
-        // if input config is not `renameFileAfterUpload`
-        // and file is being split, we have to rename it here
-        // otherwise, when it exits, it won't rename
-        if (!renameFileAfterUpload && appending) {
-            sftpUtils.renameFile(tempFilename, curFilename);
+            // if input config is not `renameFileAfterUpload`
+            // and file is being split, we have to rename it here
+            // otherwise, when it exits, it won't rename
+            if (!renameFileAfterUpload && appending) {
+                sftpUtils.renameFile(tempFilename, curFilename);
+            }
         }
     }
 
