@@ -85,7 +85,7 @@ public class SftpFileOutputPlugin
         @Min(50L * 1024 * 1024) // 50MiB
         @Max(10L * 1024 * 1024 * 1024) // 10GiB
         @Config("temp_file_threshold")
-        @ConfigDefault("2147483648") // 2GiB
+        @ConfigDefault("5368709120") // 5GiB
         public long getTempFileThreshold();
     }
 
