@@ -3,13 +3,11 @@ package org.embulk.output.sftp;
 import com.google.common.base.Throwables;
 import com.google.common.util.concurrent.AbstractScheduledService;
 import com.google.common.util.concurrent.Service;
-import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
 import org.embulk.output.sftp.utils.TimedCallable;
 import org.embulk.spi.Buffer;
 
 import java.io.BufferedOutputStream;
-import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -24,6 +22,7 @@ public class SftpRemoteFileOutput extends SftpLocalFileOutput
     SftpRemoteFileOutput(PluginTask task, int taskIndex)
     {
         super(task, taskIndex);
+        appending = true;
     }
 
     @Override
@@ -37,7 +36,7 @@ public class SftpRemoteFileOutput extends SftpLocalFileOutput
                 @Override
                 public Void call() throws Exception
                 {
-                    localOutput.write(buffer.array(), buffer.offset(), len);
+                    remoteOutput.write(buffer.array(), buffer.offset(), len);
                     return null;
                 }
             }.call(TIMEOUT, TimeUnit.SECONDS);
@@ -53,20 +52,10 @@ public class SftpRemoteFileOutput extends SftpLocalFileOutput
         }
     }
 
+    @Override
     void closeCurrentFile()
     {
-        if (localOutput != null) {
-            new TimedCallable<Void>()
-            {
-                @Override
-                public Void call() throws IOException
-                {
-                    localOutput.close();
-                    return null;
-                }
-            }.callNonInterruptible(TIMEOUT, TimeUnit.SECONDS);
-            localOutput = null;
-        }
+        super.closeCurrentFile();
         stopWatcher();
     }
 
@@ -83,19 +72,16 @@ public class SftpRemoteFileOutput extends SftpLocalFileOutput
         closeCurrentFile();
 
         try {
-            String fileName = getOutputFilePath();
-            // always write to remote .tmp first
-            String temporaryFileName = fileName + TMP_SUFFIX;
+            curFilename = getOutputFilePath();
+            tempFilename = curFilename + TMP_SUFFIX;
             // resolve remote file & open output stream
-            FileObject tempFile = sftpUtils.newSftpFile(sftpUtils.getSftpFileUri(temporaryFileName));
+            remoteFile = sftpUtils.newSftpFile(sftpUtils.getSftpFileUri(tempFilename));
             // this is where it's different from |SftpLocalFileOutput|
-            // localOutput is now an OutputStream of remote file
-            localOutput = new BufferedOutputStream(tempFile.getContent().getOutputStream());
+            remoteOutput = new BufferedOutputStream(remoteFile.getContent().getOutputStream());
             watcher = newProgressWatcher().startAsync();
         }
         catch (FileSystemException e) {
             stopWatcher();
-            logger.error(e.getMessage());
             throw Throwables.propagate(e);
         }
     }
@@ -104,10 +90,8 @@ public class SftpRemoteFileOutput extends SftpLocalFileOutput
     public void finish()
     {
         closeCurrentFile();
-        String fileName = getOutputFilePath();
-        String temporaryFileName = fileName + TMP_SUFFIX;
-        sftpUtils.renameFile(temporaryFileName, fileName);
-        fileList.add(fileReport(temporaryFileName, fileName));
+        closeRemoteFile();
+        fileList.add(fileReport());
         fileIndex++;
         stopWatcher();
     }

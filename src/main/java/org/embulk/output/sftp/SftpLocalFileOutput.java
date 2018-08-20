@@ -42,14 +42,16 @@ public class SftpLocalFileOutput
     final SftpUtils sftpUtils;
     int fileIndex = 0;
     private File tempFile;
-    BufferedOutputStream localOutput = null;
+    private BufferedOutputStream localOutput = null;
     List<Map<String, String>> fileList = new ArrayList<>();
+    String curFilename;
+    String tempFilename;
 
     /* for file splitting purpose */
-    private final long threshold; // to flush (upload to server)
-    private boolean appending = false; // when local file exceeds threshold
-    private FileObject remoteFile;
-    private OutputStream remoteOutput; // to keep output stream open during append mode
+    private final long threshold; // local file size to flush (upload to server)
+    boolean appending = false; // when local file exceeds threshold, go to append mode
+    FileObject remoteFile;
+    OutputStream remoteOutput; // to keep output stream open during append mode
     long bufLen = 0L; // local temp file size
 
     SftpLocalFileOutput(PluginTask task, int taskIndex)
@@ -71,6 +73,8 @@ public class SftpLocalFileOutput
         try {
             tempFile = Exec.getTempFileSpace().createTempFile();
             localOutput = new BufferedOutputStream(new FileOutputStream(tempFile));
+            curFilename = getOutputFilePath();
+            tempFilename = curFilename + TMP_SUFFIX;
         }
         catch (FileNotFoundException e) {
             logger.error(e.getMessage());
@@ -108,27 +112,13 @@ public class SftpLocalFileOutput
     {
         closeCurrentFile();
         try {
-            // collect report of last flush
-            Map<String, String> fileReport = flush();
-            fileList.add(fileReport);
-            if (remoteFile != null) {
-                new TimeoutCloser(remoteFile).close();
-                remoteFile = null;
-                remoteOutput = null;
-            }
-            // if input config is not `renameFileAfterUpload`
-            // and file is being split, we have to rename it here
-            // otherwise, when it exits, it won't rename
-            if (!renameFileAfterUpload && appending) {
-                sftpUtils.renameFile(
-                        fileReport.get("temporary_filename"),
-                        fileReport.get("real_filename")
-                );
-            }
+            flush();
         }
         catch (IOException e) {
             throw Throwables.propagate(e);
         }
+        closeRemoteFile();
+        fileList.add(fileReport());
         fileIndex++;
     }
 
@@ -144,13 +134,11 @@ public class SftpLocalFileOutput
     public void abort()
     {
         // delete incomplete files
-        String fileName = getOutputFilePath();
-        String temporaryFileName = fileName + TMP_SUFFIX;
         if (renameFileAfterUpload) {
-            sftpUtils.deleteFile(temporaryFileName);
+            sftpUtils.deleteFile(tempFilename);
         }
         else {
-            sftpUtils.deleteFile(fileName);
+            sftpUtils.deleteFile(curFilename);
         }
     }
 
@@ -175,40 +163,51 @@ public class SftpLocalFileOutput
         }
     }
 
+    void closeRemoteFile()
+    {
+        if (remoteFile != null) {
+            new TimeoutCloser(remoteFile).close();
+            remoteFile = null;
+            remoteOutput = null;
+        }
+        // if input config is not `renameFileAfterUpload`
+        // and file is being split, we have to rename it here
+        // otherwise, when it exits, it won't rename
+        if (!renameFileAfterUpload && appending) {
+            sftpUtils.renameFile(tempFilename, curFilename);
+        }
+    }
+
     String getOutputFilePath()
     {
         return pathPrefix + String.format(sequenceFormat, taskIndex, fileIndex) + fileNameExtension;
     }
 
-    private Map<String, String> flush() throws IOException
+    Map<String, String> fileReport()
     {
-        closeCurrentFile();
-        String fileName = getOutputFilePath();
-        String temporaryFileName = fileName + TMP_SUFFIX;
+        return ImmutableMap.of(
+                "temporary_filename", tempFilename,
+                "real_filename", curFilename
+        );
+    }
+
+    private void flush() throws IOException
+    {
         if (appending) {
             // open and keep stream open
             if (remoteFile == null && remoteOutput == null) {
-                remoteFile = sftpUtils.resolve(temporaryFileName);
+                remoteFile = sftpUtils.resolve(tempFilename);
                 remoteOutput = sftpUtils.openStream(remoteFile);
             }
             sftpUtils.appendFile(tempFile, remoteFile, remoteOutput);
         }
         else {
             if (renameFileAfterUpload) {
-                sftpUtils.uploadFile(tempFile, temporaryFileName);
+                sftpUtils.uploadFile(tempFile, tempFilename);
             }
             else {
-                sftpUtils.uploadFile(tempFile, fileName);
+                sftpUtils.uploadFile(tempFile, curFilename);
             }
         }
-        return fileReport(temporaryFileName, fileName);
-    }
-
-    static Map<String, String> fileReport(final String tempFile, final String realFile)
-    {
-        return ImmutableMap.of(
-                "temporary_filename", tempFile,
-                "real_filename", realFile
-        );
     }
 }
