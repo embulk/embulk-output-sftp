@@ -165,7 +165,7 @@ public class SftpUtils
     }
 
     /**
-     * This method won't close outputStream, outputStream is intended to be reused
+     * This method won't close outputStream, outputStream is intended to keep open for next write
      *
      * @param localTempFile
      * @param remoteFile
