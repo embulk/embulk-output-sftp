@@ -73,6 +73,7 @@ public class SftpLocalFileOutput
         try {
             tempFile = Exec.getTempFileSpace().createTempFile();
             localOutput = new BufferedOutputStream(new FileOutputStream(tempFile));
+            appending = false;
             curFilename = getOutputFilePath();
             tempFilename = curFilename + TMP_SUFFIX;
         }
@@ -203,12 +204,7 @@ public class SftpLocalFileOutput
             sftpUtils.appendFile(tempFile, remoteFile, remoteOutput);
         }
         else {
-            if (renameFileAfterUpload) {
-                sftpUtils.uploadFile(tempFile, tempFilename);
-            }
-            else {
-                sftpUtils.uploadFile(tempFile, curFilename);
-            }
+            sftpUtils.uploadFile(tempFile, renameFileAfterUpload ? tempFilename : curFilename);
         }
     }
 }
