@@ -25,6 +25,6 @@ public class TimeoutCloser implements Closeable
                 }
                 return null;
             }
-        }.callNonInterruptible(60, TimeUnit.SECONDS);
+        }.callNonInterruptible(120, TimeUnit.SECONDS);
     }
 }
