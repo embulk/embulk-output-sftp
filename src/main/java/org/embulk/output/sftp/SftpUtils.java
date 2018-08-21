@@ -18,6 +18,7 @@ import org.embulk.spi.util.RetryExecutor.RetryGiveupException;
 import org.embulk.spi.util.RetryExecutor.Retryable;
 import org.slf4j.Logger;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -259,16 +260,16 @@ public class SftpUtils
         });
     }
 
-    OutputStream openStream(final FileObject remoteFile)
+    BufferedOutputStream openStream(final FileObject remoteFile)
     {
         // output stream is already a BufferedOutputStream, no need to wrap
         final String taskName = "SFTP open stream";
-        return withRetry(new DefaultRetry<OutputStream>(taskName)
+        return withRetry(new DefaultRetry<BufferedOutputStream>(taskName)
         {
             @Override
-            public OutputStream call() throws Exception
+            public BufferedOutputStream call() throws Exception
             {
-                return remoteFile.getContent().getOutputStream();
+                return new BufferedOutputStream(remoteFile.getContent().getOutputStream());
             }
         });
     }
