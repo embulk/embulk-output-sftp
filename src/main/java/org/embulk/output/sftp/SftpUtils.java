@@ -157,7 +157,7 @@ public class SftpUtils
                 final OutputStream outputStream = openStream(remoteFile);
                 // When channel is broken, closing resource may hang, hence the time-out wrapper
                 // Note: closing FileObject will also close OutputStream
-                try (TimeoutCloser ignored = new TimeoutCloser(remoteFile)) {
+                try (TimeoutCloser ignored = new TimeoutCloser(outputStream)) {
                     appendFile(localTempFile, remoteFile, outputStream);
                     return null;
                 }
