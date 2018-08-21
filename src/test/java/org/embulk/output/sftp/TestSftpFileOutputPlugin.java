@@ -63,7 +63,7 @@ import static org.junit.Assert.assertThat;
 import static org.msgpack.value.ValueFactory.newMap;
 import static org.msgpack.value.ValueFactory.newString;
 
-public class TestSftpLocalFileOutputPlugin
+public class TestSftpFileOutputPlugin
 {
     @Rule
     public EmbulkTestRuntime runtime = new EmbulkTestRuntime();
@@ -74,7 +74,7 @@ public class TestSftpLocalFileOutputPlugin
     @Rule
     public TemporaryFolder testFolder = new TemporaryFolder();
 
-    private Logger logger = runtime.getExec().getLogger(TestSftpLocalFileOutputPlugin.class);
+    private Logger logger = runtime.getExec().getLogger(TestSftpFileOutputPlugin.class);
     private FileOutputRunner runner;
     private SshServer sshServer;
     private static final String HOST = "127.0.0.1";
