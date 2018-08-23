@@ -1,10 +1,14 @@
 package org.embulk.output.sftp.utils;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import java.io.Closeable;
 import java.util.concurrent.TimeUnit;
 
 public class TimeoutCloser implements Closeable
 {
+    @VisibleForTesting
+    int timeout = 120;
     private Closeable wrapped;
 
     public TimeoutCloser(Closeable wrapped)
@@ -25,6 +29,6 @@ public class TimeoutCloser implements Closeable
                 }
                 return null;
             }
-        }.callNonInterruptible(120, TimeUnit.SECONDS);
+        }.callNonInterruptible(timeout, TimeUnit.SECONDS);
     }
 }
