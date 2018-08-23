@@ -1,5 +1,6 @@
 package org.embulk.output.sftp;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Throwables;
 import org.apache.commons.vfs2.FileObject;
@@ -45,6 +46,8 @@ public class SftpUtils
     private final String host;
     private final int port;
     private final int maxConnectionRetry;
+    @VisibleForTesting
+    int writeTimeout = 300; // 5 minutes
 
     private DefaultFileSystemManager initializeStandardFileSystemManager()
     {
@@ -161,6 +164,9 @@ public class SftpUtils
                     appendFile(localTempFile, remoteFile, outputStream);
                     return null;
                 }
+                finally {
+                    remoteFile.close();
+                }
             }
         });
     }
@@ -177,7 +183,7 @@ public class SftpUtils
     {
         long size = localTempFile.length();
         int step = 10; // 10% each step
-        long bytesPerStep = size / step;
+        long bytesPerStep = Math.max(size / step, 1); // to prevent / 0 if file size < 10 bytes
         long startTime = System.nanoTime();
 
         // start uploading
@@ -340,7 +346,7 @@ public class SftpUtils
                     stream.write(buf, 0, len);
                     return null;
                 }
-            }.call(300, TimeUnit.SECONDS);  // 5 mins
+            }.call(writeTimeout, TimeUnit.SECONDS);
         }
         catch (Exception e) {
             logger.warn("Failed to write buffer, aborting ... ");
