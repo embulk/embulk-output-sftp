@@ -1,5 +1,6 @@
 package org.embulk.output.sftp;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import org.apache.commons.vfs2.FileObject;
@@ -16,6 +17,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -168,8 +170,14 @@ public class SftpLocalFileOutput
     void closeRemoteFile()
     {
         if (remoteOutput != null) {
-            new TimeoutCloser(remoteOutput).close();
+            try (TimeoutCloser ignore = new TimeoutCloser(remoteOutput)) {
+                // do nothing, this is to pipe closing remoteFile after closing remoteOutput
+            }
+            finally {
+                new TimeoutCloser(remoteFile).close();
+            }
             remoteOutput = null;
+            remoteFile = null;
             // if input config is not `renameFileAfterUpload`
             // and file is being split, we have to rename it here
             // otherwise, when it exits, it won't rename
@@ -205,5 +213,17 @@ public class SftpLocalFileOutput
         else {
             sftpUtils.uploadFile(tempFile, renameFileAfterUpload ? tempFilename : curFilename);
         }
+    }
+
+    @VisibleForTesting
+    OutputStream getLocalOutput()
+    {
+        return localOutput;
+    }
+
+    @VisibleForTesting
+    OutputStream getRemoteOutput()
+    {
+        return remoteOutput;
     }
 }
