@@ -19,7 +19,6 @@ import org.embulk.spi.util.RetryExecutor.RetryGiveupException;
 import org.embulk.spi.util.RetryExecutor.Retryable;
 import org.slf4j.Logger;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -188,7 +187,7 @@ public class SftpUtils
         long startTime = System.nanoTime();
 
         // start uploading
-        try (final BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(localTempFile))) {
+        try (InputStream inputStream = new FileInputStream(localTempFile)) {
             logger.info("Uploading to remote sftp file ({} KB): {}", size / 1024, remoteFile.getPublicURIString());
             final byte[] buffer = new byte[32 * 1024 * 1024]; // 32MB buffer size
             int len = inputStream.read(buffer);
