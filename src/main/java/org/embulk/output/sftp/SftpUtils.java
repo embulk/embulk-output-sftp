@@ -253,17 +253,9 @@ public class SftpUtils
         }
     }
 
-    FileObject resolve(final String remoteFilePath)
+    FileObject resolve(final String remoteFilePath) throws FileSystemException
     {
-        final String taskName = String.format("SFTP resolve file '%s'", remoteFilePath);
-        return withRetry(new DefaultRetry<FileObject>(taskName)
-        {
-            @Override
-            public FileObject call() throws Exception
-            {
-                return manager.resolveFile(getSftpFileUri(remoteFilePath).toString(), fsOptions);
-            }
-        });
+        return manager.resolveFile(getSftpFileUri(remoteFilePath).toString(), fsOptions);
     }
 
     BufferedOutputStream openStream(final FileObject remoteFile)

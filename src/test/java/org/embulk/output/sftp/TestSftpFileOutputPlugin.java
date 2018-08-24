@@ -747,7 +747,7 @@ public class TestSftpFileOutputPlugin
     }
 
     @Test
-    public void testResolveWithRetry()
+    public void testResolveWithoutRetry()
     {
         SftpFileOutputPlugin.PluginTask task = defaultTask();
         SftpUtils utils = Mockito.spy(new SftpUtils(task));
@@ -756,10 +756,15 @@ public class TestSftpFileOutputPlugin
                 .doCallRealMethod()
                 .when(utils).getSftpFileUri(Mockito.eq(defaultPathPrefix));
 
-        utils.resolve(defaultPathPrefix);
-
-        // assert retry
-        Mockito.verify(utils, Mockito.times(2)).getSftpFileUri(Mockito.eq(defaultPathPrefix));
+        try {
+            utils.resolve(defaultPathPrefix);
+            fail("Should not reach here");
+        }
+        catch (Exception e) {
+            assertThat(e, CoreMatchers.<Exception>instanceOf(ConfigException.class));
+            // assert retry
+            Mockito.verify(utils, Mockito.times(1)).getSftpFileUri(Mockito.eq(defaultPathPrefix));
+        }
     }
 
     @Test
