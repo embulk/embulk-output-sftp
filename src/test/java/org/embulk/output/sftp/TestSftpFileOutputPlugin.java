@@ -557,14 +557,14 @@ public class TestSftpFileOutputPlugin
         Mockito.doThrow(new IOException("Fake Exception"))
                 .doCallRealMethod()
                 .when(utils)
-                .appendFile(Mockito.any(File.class), Mockito.any(FileObject.class), Mockito.any(OutputStream.class));
+                .appendFile(Mockito.any(File.class), Mockito.any(FileObject.class), Mockito.any(BufferedOutputStream.class));
 
         byte[] expected = randBytes(8);
         File input = writeBytesToInputFile(expected);
         utils.uploadFile(input, defaultPathPrefix);
 
         // assert retry and recover
-        Mockito.verify(utils, Mockito.times(2)).appendFile(Mockito.any(File.class), Mockito.any(FileObject.class), Mockito.any(OutputStream.class));
+        Mockito.verify(utils, Mockito.times(2)).appendFile(Mockito.any(File.class), Mockito.any(FileObject.class), Mockito.any(BufferedOutputStream.class));
         List<String> fileList = lsR(Lists.<String>newArrayList(), Paths.get(testFolder.getRoot().getAbsolutePath()));
         assertThat(fileList, hasItem(containsString(defaultPathPrefix)));
 
@@ -587,7 +587,7 @@ public class TestSftpFileOutputPlugin
         // append throws exception
         Mockito.doThrow(new IOException("Fake IOException"))
                 .when(utils)
-                .appendFile(Mockito.any(File.class), Mockito.any(FileObject.class), Mockito.any(OutputStream.class));
+                .appendFile(Mockito.any(File.class), Mockito.any(FileObject.class), Mockito.any(BufferedOutputStream.class));
 
         byte[] expected = randBytes(8);
         File input = writeBytesToInputFile(expected);
@@ -600,7 +600,7 @@ public class TestSftpFileOutputPlugin
             assertThat(e.getCause(), CoreMatchers.<Throwable>instanceOf(IOException.class));
             assertEquals(e.getCause().getMessage(), "Fake IOException");
             // assert used up all retries
-            Mockito.verify(utils, Mockito.times(task.getMaxConnectionRetry() + 1)).appendFile(Mockito.any(File.class), Mockito.any(FileObject.class), Mockito.any(OutputStream.class));
+            Mockito.verify(utils, Mockito.times(task.getMaxConnectionRetry() + 1)).appendFile(Mockito.any(File.class), Mockito.any(FileObject.class), Mockito.any(BufferedOutputStream.class));
             assertEmptyUploadedFile(defaultPathPrefix);
         }
     }
@@ -615,7 +615,7 @@ public class TestSftpFileOutputPlugin
         Mockito.doThrow(new IOException(new JSchException("USERAUTH fail")))
                 .doCallRealMethod()
                 .when(utils)
-                .appendFile(Mockito.any(File.class), Mockito.any(FileObject.class), Mockito.any(OutputStream.class));
+                .appendFile(Mockito.any(File.class), Mockito.any(FileObject.class), Mockito.any(BufferedOutputStream.class));
 
         byte[] expected = randBytes(8);
         File input = writeBytesToInputFile(expected);
@@ -629,7 +629,7 @@ public class TestSftpFileOutputPlugin
             assertThat(e.getCause().getCause(), CoreMatchers.<Throwable>instanceOf(JSchException.class));
             assertEquals(e.getCause().getCause().getMessage(), "USERAUTH fail");
             // assert no retry
-            Mockito.verify(utils, Mockito.times(1)).appendFile(Mockito.any(File.class), Mockito.any(FileObject.class), Mockito.any(OutputStream.class));
+            Mockito.verify(utils, Mockito.times(1)).appendFile(Mockito.any(File.class), Mockito.any(FileObject.class), Mockito.any(BufferedOutputStream.class));
             assertEmptyUploadedFile(defaultPathPrefix);
         }
     }
@@ -641,7 +641,7 @@ public class TestSftpFileOutputPlugin
         SftpUtils utils = new SftpUtils(task);
 
         FileObject remoteFile = utils.resolve(defaultPathPrefix);
-        OutputStream remoteOutput = utils.openStream(remoteFile);
+        BufferedOutputStream remoteOutput = utils.openStream(remoteFile);
         // 1st append
         byte[] expected = randBytes(16);
         utils.appendFile(writeBytesToInputFile(Arrays.copyOfRange(expected, 0, 8)), remoteFile, remoteOutput);
@@ -669,7 +669,7 @@ public class TestSftpFileOutputPlugin
 
         byte[] expected = randBytes(8);
         FileObject remoteFile = utils.resolve(defaultPathPrefix);
-        OutputStream remoteOutput = Mockito.spy(utils.openStream(remoteFile));
+        BufferedOutputStream remoteOutput = Mockito.spy(utils.openStream(remoteFile));
 
         Mockito.doAnswer(new Answer()
         {
@@ -764,28 +764,6 @@ public class TestSftpFileOutputPlugin
             assertThat(e, CoreMatchers.<Exception>instanceOf(ConfigException.class));
             // assert retry
             Mockito.verify(utils, Mockito.times(1)).getSftpFileUri(Mockito.eq(defaultPathPrefix));
-        }
-    }
-
-    @Test
-    public void testResolveRetryAndGiveUp()
-    {
-        SftpFileOutputPlugin.PluginTask task = defaultTask();
-        SftpUtils utils = Mockito.spy(new SftpUtils(task));
-
-        Mockito.doThrow(new ConfigException("Fake ConfigException"))
-                .when(utils).getSftpFileUri(Mockito.eq(defaultPathPrefix));
-
-        try {
-            utils.resolve(defaultPathPrefix);
-            fail("Should not reach here");
-        }
-        catch (Exception e) {
-            assertThat(e, CoreMatchers.<Exception>instanceOf(ConfigException.class));
-            assertEquals("Fake ConfigException", e.getMessage());
-
-            // assert retry
-            Mockito.verify(utils, Mockito.times(task.getMaxConnectionRetry() + 1)).getSftpFileUri(Mockito.eq(defaultPathPrefix));
         }
     }
 

@@ -19,6 +19,7 @@ import org.embulk.spi.util.RetryExecutor.RetryGiveupException;
 import org.embulk.spi.util.RetryExecutor.Retryable;
 import org.slf4j.Logger;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -157,7 +158,7 @@ public class SftpUtils
             public Void call() throws Exception
             {
                 final FileObject remoteFile = newSftpFile(getSftpFileUri(remotePath));
-                final OutputStream outputStream = openStream(remoteFile);
+                final BufferedOutputStream outputStream = openStream(remoteFile);
                 // When channel is broken, closing resource may hang, hence the time-out wrapper
                 // Note: closing FileObject will also close OutputStream
                 try (TimeoutCloser ignored = new TimeoutCloser(outputStream)) {
@@ -179,7 +180,7 @@ public class SftpUtils
      * @param outputStream
      * @throws IOException
      */
-    void appendFile(final File localTempFile, final FileObject remoteFile, final OutputStream outputStream) throws IOException
+    void appendFile(final File localTempFile, final FileObject remoteFile, final BufferedOutputStream outputStream) throws IOException
     {
         long size = localTempFile.length();
         int step = 10; // 10% each step
@@ -187,7 +188,7 @@ public class SftpUtils
         long startTime = System.nanoTime();
 
         // start uploading
-        try (InputStream inputStream = new FileInputStream(localTempFile)) {
+        try (final BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(localTempFile))) {
             logger.info("Uploading to remote sftp file ({} KB): {}", size / 1024, remoteFile.getPublicURIString());
             final byte[] buffer = new byte[32 * 1024 * 1024]; // 32MB buffer size
             int len = inputStream.read(buffer);

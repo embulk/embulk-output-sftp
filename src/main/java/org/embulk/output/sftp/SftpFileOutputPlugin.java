@@ -50,7 +50,7 @@ public class SftpFileOutputPlugin
 
         @Config("user_directory_is_root")
         @ConfigDefault("true")
-        public Boolean getUserDirIsRoot();
+        public boolean getUserDirIsRoot();
 
         @Config("timeout")
         @ConfigDefault("600") // 10 minutes
@@ -76,12 +76,12 @@ public class SftpFileOutputPlugin
 
         @Config("rename_file_after_upload")
         @ConfigDefault("false")
-        public Boolean getRenameFileAfterUpload();
+        public boolean getRenameFileAfterUpload();
 
         // if `false`, plugin will use remote file as buffer
         @Config("local_buffering")
         @ConfigDefault("true")
-        public Boolean getLocalBuffering();
+        public boolean getLocalBuffering();
 
         @Min(50L * 1024 * 1024) // 50MiB
         @Max(10L * 1024 * 1024 * 1024) // 10GiB
