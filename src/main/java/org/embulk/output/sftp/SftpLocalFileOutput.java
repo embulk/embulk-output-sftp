@@ -170,12 +170,7 @@ public class SftpLocalFileOutput
     void closeRemoteFile()
     {
         if (remoteOutput != null) {
-            try (TimeoutCloser ignore = new TimeoutCloser(remoteOutput)) {
-                // do nothing, this is to pipe closing remoteFile after closing remoteOutput
-            }
-            finally {
-                new TimeoutCloser(remoteFile).close();
-            }
+            new TimeoutCloser(remoteOutput).close();
             remoteOutput = null;
             remoteFile = null;
             // if input config is not `renameFileAfterUpload`
