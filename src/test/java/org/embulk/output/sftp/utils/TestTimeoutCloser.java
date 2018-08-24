@@ -5,9 +5,11 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import java.io.Closeable;
+import java.util.concurrent.TimeoutException;
 
 import static junit.framework.TestCase.fail;
-import static org.junit.Assert.assertTrue;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.MatcherAssert.assertThat;
 
 public class TestTimeoutCloser
 {
@@ -15,7 +17,7 @@ public class TestTimeoutCloser
     public EmbulkTestRuntime runtime = new EmbulkTestRuntime();
 
     @Test
-    public void testTimeoutAndResume()
+    public void testTimeoutAndAbort()
     {
         TimeoutCloser closer = new TimeoutCloser(new Closeable()
         {
@@ -31,10 +33,13 @@ public class TestTimeoutCloser
             }
         });
         closer.timeout = 1;
-        long start = System.currentTimeMillis();
-        closer.close();
-        long duration = System.currentTimeMillis() - start;
-        assertTrue("longer than 1s", duration > 1000);
-        assertTrue("shorter than 5s", duration < 5000);
+        try {
+            closer.close();
+            fail("Should not finish");
+        }
+        catch (Exception e) {
+            assertThat(e, instanceOf(RuntimeException.class));
+            assertThat(e.getCause(), instanceOf(TimeoutException.class));
+        }
     }
 }
