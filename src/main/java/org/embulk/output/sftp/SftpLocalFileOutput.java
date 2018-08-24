@@ -135,7 +135,6 @@ public class SftpLocalFileOutput
     public void close()
     {
         closeCurrentFile();
-        closeRemoteFile();
         // TODO
         sftpUtils.close();
     }
