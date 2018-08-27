@@ -160,12 +160,10 @@ public class SftpUtils
                 final BufferedOutputStream outputStream = openStream(remoteFile);
                 // When channel is broken, closing resource may hang, hence the time-out wrapper
                 // Note: closing FileObject will also close OutputStream
-                try (TimeoutCloser ignored = new TimeoutCloser(outputStream)) {
+                try (final TimeoutCloser ignored1 = new TimeoutCloser(outputStream);
+                     final TimeoutCloser ignored2 = new TimeoutCloser(remoteFile)) {
                     appendFile(localTempFile, remoteFile, outputStream);
                     return null;
-                }
-                finally {
-                    remoteFile.close();
                 }
             }
         });
