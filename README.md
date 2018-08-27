@@ -24,6 +24,8 @@ Stores files on a SFTP Server
 - **file_ext**: Extension of output files (string, required)
 - **sequence_format**: Format for sequence part of output files (string, default: `".%03d.%02d"`)
 - **rename_file_after_upload**: Upload `file_ext` + ".tmp" first, then rename it after upload finish (boolean, default: `false`)
+- **local_buffering**: Use local temp file to buffer records. If `false`, plugin will buffer records to remote file directly, with ".tmp" as filename suffix (boolean, default: `true`)
+- **temp_file_threshold**: Maximum file size of local temp file, plugin will flush (append) to remote file when local temp file reaches threshold (long, default: `5368709120`, ie. 5GiB, min: 50MiB, max: 10GiB)
 
 ### Proxy configuration
 
@@ -53,6 +55,7 @@ out:
   path_prefix: /data/sftp
   file_ext: _20151020.tsv
   sequence_format: ".%01d%01d"
+  temp_file_threshold: 10737418240 # 10GiB
 ```
 
 With proxy

@@ -1,3 +1,6 @@
+0.1.11 (2018-08-27)
+- Enhance: Add 2 new configs `local_temp_file` (boolean) and `temp_file_threshold` (long)
+  - https://github.com/embulk/embulk-output-sftp/pull/50
 0.1.10 (2018-05-07)
 - Fix: Use java.util.regex.Pattern for host name validation
   - https://github.com/embulk/embulk-output-sftp/pull/49
