@@ -20,6 +20,7 @@ import org.embulk.spi.util.RetryExecutor.Retryable;
 import org.slf4j.Logger;
 
 import java.io.BufferedOutputStream;
+import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -39,7 +40,7 @@ import static org.embulk.spi.util.RetryExecutor.retryExecutor;
 public class SftpUtils
 {
     private final Logger logger = Exec.getLogger(SftpUtils.class);
-    private final DefaultFileSystemManager manager;
+    private DefaultFileSystemManager manager;
     private final FileSystemOptions fsOptions;
     private final String userInfo;
     private final String user;
@@ -159,12 +160,23 @@ public class SftpUtils
                 final FileObject remoteFile = newSftpFile(getSftpFileUri(remotePath));
                 final BufferedOutputStream outputStream = openStream(remoteFile);
                 // When channel is broken, closing resource may hang, hence the time-out wrapper
-                // Note: closing FileObject will also close OutputStream
-                try (final TimeoutCloser ignored1 = new TimeoutCloser(outputStream);
-                     final TimeoutCloser ignored2 = new TimeoutCloser(remoteFile)) {
+                try (final TimeoutCloser ignored = new TimeoutCloser(outputStream)) {
                     appendFile(localTempFile, remoteFile, outputStream);
                     return null;
                 }
+                finally {
+                    // closing sequentially
+                    new TimeoutCloser(remoteFile).close();
+                }
+            }
+
+            @Override
+            public void onRetry(Exception exception, int retryCount, int retryLimit, int retryWait)
+            {
+                super.onRetry(exception, retryCount, retryLimit, retryWait);
+                // re-connect
+                manager.close();
+                manager = initializeStandardFileSystemManager();
             }
         });
     }
@@ -256,18 +268,9 @@ public class SftpUtils
         return manager.resolveFile(getSftpFileUri(remoteFilePath).toString(), fsOptions);
     }
 
-    BufferedOutputStream openStream(final FileObject remoteFile)
+    BufferedOutputStream openStream(final FileObject remoteFile) throws FileSystemException
     {
-        // output stream is already a BufferedOutputStream, no need to wrap
-        final String taskName = "SFTP open stream";
-        return withRetry(new DefaultRetry<BufferedOutputStream>(taskName)
-        {
-            @Override
-            public BufferedOutputStream call() throws Exception
-            {
-                return new BufferedOutputStream(remoteFile.getContent().getOutputStream());
-            }
-        });
+        return new BufferedOutputStream(remoteFile.getContent().getOutputStream());
     }
 
     URI getSftpFileUri(String remoteFilePath)
