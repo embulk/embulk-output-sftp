@@ -32,7 +32,7 @@ public class TestTimeoutCloser
                 }
             }
         });
-        closer.timeout = 1;
+        TimeoutCloser.setTimeout(1);
         try {
             closer.close();
             fail("Should not finish");
