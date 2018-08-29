@@ -1,3 +1,6 @@
+0.2.0 (2018-08-29)
+- Fix bug of stalling when closing `remoteFile`, this version is recommended over 0.1.11
+  - https://github.com/embulk/embulk-output-sftp/pull/51
 0.1.11 (2018-08-27)
 - Enhance: Add 2 new configs `local_temp_file` (boolean) and `temp_file_threshold` (long)
   - https://github.com/embulk/embulk-output-sftp/pull/50
