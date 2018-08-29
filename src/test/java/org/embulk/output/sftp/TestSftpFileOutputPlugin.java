@@ -768,7 +768,7 @@ public class TestSftpFileOutputPlugin
     }
 
     @Test
-    public void testOpenStreamWithRetry() throws FileSystemException
+    public void testOpenStreamWithoutRetry() throws FileSystemException
     {
         SftpFileOutputPlugin.PluginTask task = defaultTask();
         SftpUtils utils = new SftpUtils(task);
@@ -778,9 +778,13 @@ public class TestSftpFileOutputPlugin
                 .doCallRealMethod()
                 .when(mock).getContent();
 
-        OutputStream stream = utils.openStream(mock);
-        assertNotNull(stream);
-        Mockito.verify(mock, Mockito.times(2)).getContent();
+        try {
+            utils.openStream(mock);
+            fail("Should not reach here");
+        }
+        catch (FileSystemException e) {
+            Mockito.verify(mock, Mockito.times(1)).getContent();
+        }
     }
 
     @Test

@@ -10,8 +10,7 @@ import java.util.concurrent.TimeoutException;
 
 public class TimeoutCloser implements Closeable
 {
-    @VisibleForTesting
-    int timeout = 300; // 5 minutes
+    private static int timeout = 300; // 5 minutes
     private Closeable wrapped;
 
     public TimeoutCloser(Closeable wrapped)
@@ -38,5 +37,11 @@ public class TimeoutCloser implements Closeable
         catch (InterruptedException | ExecutionException | TimeoutException e) {
             throw Throwables.propagate(e);
         }
+    }
+
+    @VisibleForTesting
+    public static void setTimeout(int timeout)
+    {
+        TimeoutCloser.timeout = timeout;
     }
 }
