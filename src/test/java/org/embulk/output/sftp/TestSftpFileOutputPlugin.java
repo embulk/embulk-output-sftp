@@ -612,7 +612,7 @@ public class TestSftpFileOutputPlugin
         SftpUtils utils = Mockito.spy(new SftpUtils(task));
 
         // append throws exception
-        Mockito.doThrow(new IOException(new JSchException("USERAUTH fail")))
+        Mockito.doThrow(new IOException(new JSchException("Auth fail")))
                 .doCallRealMethod()
                 .when(utils)
                 .appendFile(Mockito.any(File.class), Mockito.any(FileObject.class), Mockito.any(BufferedOutputStream.class));
@@ -627,7 +627,7 @@ public class TestSftpFileOutputPlugin
             assertThat(e, CoreMatchers.<Exception>instanceOf(RuntimeException.class));
             assertThat(e.getCause(), CoreMatchers.<Throwable>instanceOf(IOException.class));
             assertThat(e.getCause().getCause(), CoreMatchers.<Throwable>instanceOf(JSchException.class));
-            assertEquals(e.getCause().getCause().getMessage(), "USERAUTH fail");
+            assertEquals(e.getCause().getCause().getMessage(), "Auth fail");
             // assert no retry
             Mockito.verify(utils, Mockito.times(1)).appendFile(Mockito.any(File.class), Mockito.any(FileObject.class), Mockito.any(BufferedOutputStream.class));
             assertEmptyUploadedFile(defaultPathPrefix);
