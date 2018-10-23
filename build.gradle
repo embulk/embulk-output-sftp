@@ -17,7 +17,7 @@ configurations {
 }
 
 group = "org.embulk.output.sftp"
-version = "0.2.0"
+version = "0.2.1"
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
 

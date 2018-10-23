@@ -1,3 +1,6 @@
+0.2.1 (2018-10-23)
+- Improved logic that detects exception is retryable or not
+  - https://github.com/embulk/embulk-output-sftp/pull/52
 0.2.0 (2018-08-29)
 - Fix bug of stalling when closing `remoteFile`, this version is recommended over 0.1.11
   - https://github.com/embulk/embulk-output-sftp/pull/51
