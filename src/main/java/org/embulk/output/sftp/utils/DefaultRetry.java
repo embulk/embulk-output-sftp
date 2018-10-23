@@ -42,7 +42,7 @@ public abstract class DefaultRetry<T> implements RetryExecutor.Retryable<T>
 
     private static boolean isAuthFail(Throwable e)
     {
-        return e instanceof JSchException && "USERAUTH fail".equals(e.getMessage());
+        return e instanceof JSchException && (e.getMessage().contains("Auth fail") || e.getMessage().contains("USERAUTH fail"));
     }
 
     private static boolean hasRootCauseAuthFail(Throwable e)
