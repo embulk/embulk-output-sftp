@@ -26,68 +26,68 @@ public class SftpFileOutputPlugin
             extends Task
     {
         @Config("host")
-        public String getHost();
+        String getHost();
 
         @Config("port")
         @ConfigDefault("22")
-        public int getPort();
+        int getPort();
 
         @Config("user")
-        public String getUser();
+        String getUser();
 
         @Config("password")
         @ConfigDefault("null")
-        public Optional<String> getPassword();
+        Optional<String> getPassword();
 
         @Config("secret_key_file")
         @ConfigDefault("null")
-        public Optional<LocalFile> getSecretKeyFilePath();
-        public void setSecretKeyFilePath(Optional<LocalFile> secretKeyFilePath);
+        Optional<LocalFile> getSecretKeyFilePath();
+        void setSecretKeyFilePath(Optional<LocalFile> secretKeyFilePath);
 
         @Config("secret_key_passphrase")
         @ConfigDefault("\"\"")
-        public String getSecretKeyPassphrase();
+        String getSecretKeyPassphrase();
 
         @Config("user_directory_is_root")
         @ConfigDefault("true")
-        public boolean getUserDirIsRoot();
+        boolean getUserDirIsRoot();
 
         @Config("timeout")
         @ConfigDefault("600") // 10 minutes
-        public int getSftpConnectionTimeout();
+        int getSftpConnectionTimeout();
 
         @Config("max_connection_retry")
         @ConfigDefault("5") // 5 times retry to connect sftp server if failed.
-        public int getMaxConnectionRetry();
+        int getMaxConnectionRetry();
 
         @Config("path_prefix")
-        public String getPathPrefix();
+        String getPathPrefix();
 
         @Config("file_ext")
-        public String getFileNameExtension();
+        String getFileNameExtension();
 
         @Config("sequence_format")
         @ConfigDefault("\"%03d.%02d.\"")
-        public String getSequenceFormat();
+        String getSequenceFormat();
 
         @Config("proxy")
         @ConfigDefault("null")
-        public Optional<ProxyTask> getProxy();
+        Optional<ProxyTask> getProxy();
 
         @Config("rename_file_after_upload")
         @ConfigDefault("false")
-        public boolean getRenameFileAfterUpload();
+        boolean getRenameFileAfterUpload();
 
         // if `false`, plugin will use remote file as buffer
         @Config("local_buffering")
         @ConfigDefault("true")
-        public boolean getLocalBuffering();
+        boolean getLocalBuffering();
 
         @Min(50L * 1024 * 1024) // 50MiB
         @Max(10L * 1024 * 1024 * 1024) // 10GiB
         @Config("temp_file_threshold")
         @ConfigDefault("5368709120") // 5GiB
-        public long getTempFileThreshold();
+        long getTempFileThreshold();
     }
 
     @Override
