@@ -27,7 +27,7 @@ dependencies {
     // compile "YOUR_JAR_DEPENDENCY_GROUP:YOUR_JAR_DEPENDENCY_MODULE:YOUR_JAR_DEPENDENCY_VERSION"
     compile "org.apache.commons:commons-vfs2:2.2"
     compile "commons-io:commons-io:2.6"
-    compile "com.jcraft:jsch:0.1.54"
+    compile "com.jcraft:jsch:0.1.55"
     testCompile "junit:junit:4.+"
     testCompile "org.embulk:embulk-core:0.9.7:tests"
     testCompile "org.embulk:embulk-standards:0.9.7"
