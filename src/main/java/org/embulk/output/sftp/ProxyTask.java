@@ -16,28 +16,28 @@ interface ProxyTask
         extends Task
 {
     @Config("type")
-    public ProxyType getType();
+    ProxyType getType();
 
     @Config("host")
-    public Optional<String> getHost();
+    Optional<String> getHost();
 
     @Config("user")
     @ConfigDefault("null")
-    public Optional<String> getUser();
+    Optional<String> getUser();
 
     @Config("password")
     @ConfigDefault("null")
-    public Optional<String> getPassword();
+    Optional<String> getPassword();
 
     @Config("port")
     @ConfigDefault("22")
-    public int getPort();
+    int getPort();
 
     @Config("command")
     @ConfigDefault("null")
-    public Optional<String> getCommand();
+    Optional<String> getCommand();
 
-    public enum ProxyType
+    enum ProxyType
     {
         HTTP,
         SOCKS,
