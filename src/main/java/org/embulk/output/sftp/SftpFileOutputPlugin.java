@@ -1,6 +1,5 @@
 package org.embulk.output.sftp;
 
-import com.google.common.base.Optional;
 import org.embulk.config.Config;
 import org.embulk.config.ConfigDefault;
 import org.embulk.config.ConfigDiff;
@@ -18,6 +17,7 @@ import javax.validation.constraints.Min;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class SftpFileOutputPlugin
         implements FileOutputPlugin

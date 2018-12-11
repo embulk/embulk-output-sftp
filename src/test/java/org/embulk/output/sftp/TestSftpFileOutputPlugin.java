@@ -1,7 +1,6 @@
 package org.embulk.output.sftp;
 
 import com.google.common.base.Charsets;
-import com.google.common.base.Optional;
 import com.google.common.collect.Lists;
 import com.google.common.io.Resources;
 import com.jcraft.jsch.JSchException;
@@ -62,6 +61,7 @@ import java.security.PublicKey;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeoutException;
 
@@ -331,8 +331,8 @@ public class TestSftpFileOutputPlugin
         assertEquals(HOST, task.getHost());
         assertEquals(22, task.getPort());
         assertEquals(USERNAME, task.getUser());
-        assertEquals(Optional.absent(), task.getPassword());
-        assertEquals(Optional.absent(), task.getSecretKeyFilePath());
+        assertEquals(Optional.empty(), task.getPassword());
+        assertEquals(Optional.empty(), task.getSecretKeyFilePath());
         assertEquals("", task.getSecretKeyPassphrase());
         assertEquals(true, task.getUserDirIsRoot());
         assertEquals(600, task.getSftpConnectionTimeout());
@@ -340,7 +340,7 @@ public class TestSftpFileOutputPlugin
         assertEquals(pathPrefix, task.getPathPrefix());
         assertEquals("txt", task.getFileNameExtension());
         assertEquals("%03d.%02d.", task.getSequenceFormat());
-        assertEquals(Optional.absent(), task.getProxy());
+        assertEquals(Optional.empty(), task.getProxy());
     }
 
     @Test
