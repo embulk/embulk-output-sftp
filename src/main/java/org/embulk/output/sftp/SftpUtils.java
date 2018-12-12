@@ -1,7 +1,6 @@
 package org.embulk.output.sftp;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Function;
 import com.google.common.base.Throwables;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
@@ -20,7 +19,6 @@ import org.embulk.spi.util.RetryExecutor.Retryable;
 import org.slf4j.Logger;
 
 import java.io.BufferedOutputStream;
-import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -29,6 +27,7 @@ import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 
 import static org.embulk.output.sftp.SftpFileOutputPlugin.PluginTask;
@@ -96,7 +95,7 @@ public class SftpUtils
             builder.setStrictHostKeyChecking(fsOptions, "no");
             if (task.getSecretKeyFilePath().isPresent()) {
                 IdentityInfo identityInfo = new IdentityInfo(
-                        new File((task.getSecretKeyFilePath().transform(localFileToPathString()).get())),
+                        new File((task.getSecretKeyFilePath().map(localFileToPathString()).get())),
                         task.getSecretKeyPassphrase().getBytes()
                 );
                 builder.setIdentityInfo(fsOptions, identityInfo);

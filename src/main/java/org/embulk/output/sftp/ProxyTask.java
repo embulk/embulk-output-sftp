@@ -2,7 +2,6 @@ package org.embulk.output.sftp;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
-import com.google.common.base.Optional;
 import org.apache.commons.vfs2.FileSystemOptions;
 import org.apache.commons.vfs2.provider.sftp.SftpFileSystemConfigBuilder;
 import org.embulk.config.Config;
@@ -11,6 +10,7 @@ import org.embulk.config.ConfigException;
 import org.embulk.config.Task;
 
 import java.util.Locale;
+import java.util.Optional;
 
 interface ProxyTask
         extends Task
