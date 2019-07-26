@@ -1,6 +1,7 @@
 package org.embulk.output.sftp.utils;
 
 import com.jcraft.jsch.JSchException;
+import org.embulk.config.ConfigException;
 import org.embulk.spi.Exec;
 import org.embulk.spi.util.RetryExecutor;
 import org.slf4j.Logger;
@@ -19,7 +20,7 @@ public abstract class DefaultRetry<T> implements RetryExecutor.Retryable<T>
     @Override
     public boolean isRetryableException(Exception exception)
     {
-        return !hasRootCauseAuthFail(exception);
+        return !hasRootCauseUserProblem(exception);
     }
 
     @Override
@@ -38,6 +39,9 @@ public abstract class DefaultRetry<T> implements RetryExecutor.Retryable<T>
     @Override
     public void onGiveup(Exception firstException, Exception lastException)
     {
+        if (hasRootCauseUserProblem(lastException)) {
+            throw new ConfigException(lastException);
+        }
     }
 
     private static boolean isAuthFail(Throwable e)
@@ -45,9 +49,14 @@ public abstract class DefaultRetry<T> implements RetryExecutor.Retryable<T>
         return e instanceof JSchException && (e.getMessage().contains("Auth fail") || e.getMessage().contains("USERAUTH fail"));
     }
 
-    private static boolean hasRootCauseAuthFail(Throwable e)
+    private static boolean isConnectionProblem(Throwable e)
     {
-        while (e != null && !isAuthFail(e)) {
+        return e instanceof JSchException && (e.getMessage().contains("Connection refused"));
+    }
+
+    private static boolean hasRootCauseUserProblem(Throwable e)
+    {
+        while (e != null && !isAuthFail(e) && !isConnectionProblem(e)) {
             e = e.getCause();
         }
         return e != null;
