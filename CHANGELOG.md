@@ -1,3 +1,6 @@
+0.2.2 (2019-07-26)
+- Do not retry when "Connection refused" is returned and throw ConfigException
+  - https://github.com/embulk/embulk-output-sftp/pull/56
 0.2.1 (2018-10-23)
 - Improved logic that detects exception is retryable or not
   - https://github.com/embulk/embulk-output-sftp/pull/52
