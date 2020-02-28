@@ -1,40 +1,64 @@
 plugins {
-    id "com.jfrog.bintray" version "1.7"
+    id "com.jfrog.bintray" version "1.8.4"
     id "maven-publish"
-    id "com.github.jruby-gradle.base" version "0.1.5"
     id "com.github.kt3k.coveralls" version "2.4.0"
     id "jacoco"
     id "java"
     id "checkstyle"
+    id "org.embulk.embulk-plugins" version "0.3.0"
 }
-import com.github.jrubygradle.JRubyExec
+
 repositories {
     mavenCentral()
     jcenter()
 }
-configurations {
-    provided
-}
 
 group = "org.embulk.output.sftp"
-version = "0.2.2"
+version = "0.2.3"
+description = "Stores files on SFTP server."
+
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
+tasks.withType(JavaCompile) {
+    options.compilerArgs << "-Xlint:deprecation" << "-Xlint:unchecked"
+}
+
 dependencies {
-    compile  "org.embulk:embulk-core:0.9.7"
-    provided "org.embulk:embulk-core:0.9.7"
-    // compile "YOUR_JAR_DEPENDENCY_GROUP:YOUR_JAR_DEPENDENCY_MODULE:YOUR_JAR_DEPENDENCY_VERSION"
+    compileOnly "org.embulk:embulk-core:0.9.23"
     compile "org.apache.commons:commons-vfs2:2.2"
     compile "commons-io:commons-io:2.6"
     compile "com.jcraft:jsch:0.1.55"
-    testCompile "junit:junit:4.+"
-    testCompile "org.embulk:embulk-core:0.9.7:tests"
-    testCompile "org.embulk:embulk-standards:0.9.7"
+
+    testCompile "junit:junit:4.13"
+    testCompile "org.embulk:embulk-core:0.9.23:tests"
+    testCompile "org.embulk:embulk-standards:0.9.23"
+    testCompile "org.embulk:embulk-deps-buffer:0.9.23"
+    testCompile "org.embulk:embulk-deps-config:0.9.23"
     testCompile "org.apache.sshd:apache-sshd:1.1.0+"
     testCompile "org.littleshoot:littleproxy:1.1.0-beta1"
     testCompile "io.netty:netty-all:4.0.34.Final"
-    testCompile "org.mockito:mockito-core:2.+"
+    testCompile "org.mockito:mockito-core:2.28.2"
+}
+
+embulkPlugin {
+    mainClass = "org.embulk.output.sftp.SftpFileOutputPlugin"
+    category = "output"
+    type = "sftp"
+}
+
+// add tests/javadoc/source jar tasks as artifacts to be released
+task testsJar(type: Jar, dependsOn: classes) {
+    classifier = 'tests'
+    from sourceSets.test.output
+}
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
 }
 
 jacocoTestReport {
@@ -57,7 +81,7 @@ bintray {
     user = project.hasProperty('bintray_user') ? bintray_user : ''
     key = project.hasProperty('bintray_api_key') ? bintray_api_key : ''
 
-    publications = ['bintrayMavenRelease']
+    publications = [ "embulkMavenRelease" ]
     publish = true
 
     pkg {
@@ -77,36 +101,16 @@ bintray {
         }
     }
 }
+
 publishing {
     publications {
-        bintrayMavenRelease(MavenPublication) {
+        embulkMavenRelease(MavenPublication) {  // Publish it with "publishEmbulkPluginMavenPublicationTo???Repository".
             from components.java
             artifact testsJar
             artifact sourcesJar
             artifact javadocJar
         }
     }
-}
-
-task classpath(type: Copy, dependsOn: ["jar"]) {
-    doFirst { file("classpath").deleteDir() }
-    from (configurations.runtime - configurations.provided + files(jar.archivePath))
-    into "classpath"
-}
-clean { delete "classpath" }
-
-// add tests/javadoc/source jar tasks as artifacts to be released
-task testsJar(type: Jar, dependsOn: classes) {
-    classifier = 'tests'
-    from sourceSets.test.output
-}
-task sourcesJar(type: Jar, dependsOn: classes) {
-    classifier = 'sources'
-    from sourceSets.main.allSource
-}
-task javadocJar(type: Jar, dependsOn: javadoc) {
-    classifier = 'javadoc'
-    from javadoc.destinationDir
 }
 
 checkstyle {
@@ -126,46 +130,14 @@ task checkstyle(type: Checkstyle) {
     source = sourceSets.main.allJava + sourceSets.test.allJava
 }
 
-task gem(type: JRubyExec, dependsOn: ["gemspec", "classpath"]) {
-    jrubyArgs "-rrubygems/gem_runner", "-eGem::GemRunner.new.run(ARGV)", "build"
-    script "${project.name}.gemspec"
-    doLast { ant.move(file: "${project.name}-${project.version}.gem", todir: "pkg") }
+gem {
+    authors = [ "Civitaspo", "Satoshi Akama" ]
+    email = [ "civitaspo@gmail.com", "satoshiakama@gmail.com" ]
+    summary = "SFTP file output plugin for Embulk"
+    homepage = "https://github.com/embulk/embulk-output-sftp"
+    licenses = [ "MIT" ]
 }
 
-task gemPush(type: JRubyExec, dependsOn: ["gem"]) {
-    jrubyArgs "-rrubygems/gem_runner", "-eGem::GemRunner.new.run(ARGV)", "push"
-    script "pkg/${project.name}-${project.version}.gem"
+gemPush {
+    host = "https://rubygems.org"
 }
-
-task "package"(dependsOn: ["gemspec", "classpath"]) << {
-    println "> Build succeeded."
-    println "> You can run embulk with '-L ${file(".").absolutePath}' argument."
-}
-
-task gemspec {
-    ext.gemspecFile = file("${project.name}.gemspec")
-    inputs.file "build.gradle"
-    outputs.file gemspecFile
-    doLast { gemspecFile.write($/
-Gem::Specification.new do |spec|
-  spec.name          = "${project.name}"
-  spec.version       = "${project.version}"
-  spec.authors       = ["Civitaspo", "Satoshi Akama"]
-  spec.summary       = %[SFTP file output plugin for Embulk]
-  spec.description   = %[Stores files on SFTP server.]
-  spec.email         = ["civitaspo@gmail.com", "satoshiakama@gmail.com"]
-  spec.licenses      = ["MIT"]
-  spec.homepage      = "https://github.com/embulk/embulk-output-sftp"
-
-  spec.files         = `git ls-files`.split("\n") + Dir["classpath/*.jar"]
-  spec.test_files    = spec.files.grep(%r"^(test|spec)/")
-  spec.require_paths = ["lib"]
-
-  #spec.add_dependency 'YOUR_GEM_DEPENDENCY', ['~> YOUR_GEM_DEPENDENCY_VERSION']
-  spec.add_development_dependency 'bundler', ['~> 1.0']
-  spec.add_development_dependency 'rake', ['>= 10.0']
-end
-/$)
-    }
-}
-clean { delete "${project.name}.gemspec" }
