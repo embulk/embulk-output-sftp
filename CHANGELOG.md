@@ -1,5 +1,6 @@
 0.2.4 (2020-05-20)
 - Add more log to monitor.
+  - https://github.com/embulk/embulk-output-sftp/pull/58
 0.2.2 (2019-07-26)
 - Do not retry when "Connection refused" is returned and throw ConfigException
   - https://github.com/embulk/embulk-output-sftp/pull/56
