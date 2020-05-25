@@ -99,14 +99,14 @@ public class SftpUtils
             builder.setTimeout(fsOptions, task.getSftpConnectionTimeout() * 1000);
             builder.setStrictHostKeyChecking(fsOptions, "no");
             if (task.getSecretKeyFilePath().isPresent()) {
-                File file = new File((task.getSecretKeyFilePath().map(localFileToPathString()).get()));
+                File secretKeyFile = task.getSecretKeyFilePath().get().getFile();
                 IdentityInfo identityInfo = new IdentityInfo(
-                        file,
+                        secretKeyFile,
                         task.getSecretKeyPassphrase().getBytes()
                 );
                 builder.setIdentityInfo(fsOptions, identityInfo);
                 logger.info("set identity: {}", task.getSecretKeyFilePath().get().getPath().toString());
-                logger.info("checksum of identity: {}", getChecksum(file.toPath()));
+                logger.info("checksum of identity: {}", getChecksum(secretKeyFile.toPath()));
             }
 
             if (task.getProxy().isPresent()) {
