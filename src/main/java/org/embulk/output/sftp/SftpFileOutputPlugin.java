@@ -11,6 +11,7 @@ import org.embulk.spi.Exec;
 import org.embulk.spi.FileOutputPlugin;
 import org.embulk.spi.TransactionalFileOutput;
 import org.embulk.spi.unit.LocalFile;
+import org.slf4j.Logger;
 
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
@@ -22,6 +23,8 @@ import java.util.Optional;
 public class SftpFileOutputPlugin
         implements FileOutputPlugin
 {
+    private final Logger logger = Exec.getLogger(SftpFileOutputPlugin.class);
+
     public interface PluginTask
             extends Task
     {
@@ -99,6 +102,9 @@ public class SftpFileOutputPlugin
         try {
             sftpUtils = new SftpUtils(task);
             sftpUtils.validateHost(task);
+            if (task.getSecretKeyFilePath().isPresent()) {
+                logger.info("checksum of key file: {}", sftpUtils.getChecksum(task.getSecretKeyFilePath().get().getPath()));
+            }
         }
         finally {
             if (sftpUtils != null) {

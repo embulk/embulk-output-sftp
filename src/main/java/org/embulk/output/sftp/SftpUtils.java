@@ -104,7 +104,6 @@ public class SftpUtils
                         task.getSecretKeyPassphrase().getBytes()
                 );
                 builder.setIdentityInfo(fsOptions, identityInfo);
-                logger.info("checksum of key file: {}", getchecksumSecretKey(task.getSecretKeyFilePath().get().getPath()));
                 logger.info("set identity: {}", task.getSecretKeyFilePath().get().getPath().toString());
             }
 
@@ -132,7 +131,7 @@ public class SftpUtils
             }
         }
         catch (FileSystemException e) {
-            logger.error("Error during initialize FsOptions: {}", e.getMessage());
+            logger.error(e.getMessage());
             throw new ConfigException(e);
         }
 
@@ -352,7 +351,7 @@ public class SftpUtils
         }
     }
 
-    private String getchecksumSecretKey(Path path)
+    public String getChecksum(Path path)
     {
         if (path == null) {
             return "";
@@ -361,11 +360,11 @@ public class SftpUtils
             MessageDigest md = MessageDigest.getInstance("MD5");
             md.update(Files.readAllBytes(path));
             byte[] digest = md.digest();
-            String myChecksum = DatatypeConverter.printHexBinary(digest).toUpperCase();
+            String myChecksum = DatatypeConverter.printHexBinary(digest).toLowerCase();
             return myChecksum;
         }
         catch (Exception e) {
-            logger.info("error during get checksum key file: {}", e.getMessage());
+            logger.warn("error during get checksum: {}", e.getMessage());
         }
         return "";
     }

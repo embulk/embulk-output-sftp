@@ -73,7 +73,7 @@ public class SftpFileProvider extends org.apache.commons.vfs2.provider.sftp.Sftp
                     fileSystemOptions);
         }
         catch (final Exception e) {
-            logger.info("Creat sftp connection fail: {}", e.getMessage());
+            logger.error("Create SFTP connection was failed: {}", e.getMessage());
             throw new FileSystemException("vfs.provider.sftp/connect.error", name, e);
         }
         finally {
