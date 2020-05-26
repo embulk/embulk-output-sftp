@@ -18,6 +18,8 @@ import org.embulk.spi.util.RetryExecutor.RetryGiveupException;
 import org.embulk.spi.util.RetryExecutor.Retryable;
 import org.slf4j.Logger;
 
+import javax.xml.bind.DatatypeConverter;
+
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -26,6 +28,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -94,12 +99,14 @@ public class SftpUtils
             builder.setTimeout(fsOptions, task.getSftpConnectionTimeout() * 1000);
             builder.setStrictHostKeyChecking(fsOptions, "no");
             if (task.getSecretKeyFilePath().isPresent()) {
+                File secretKeyFile = task.getSecretKeyFilePath().get().getFile();
                 IdentityInfo identityInfo = new IdentityInfo(
-                        new File((task.getSecretKeyFilePath().map(localFileToPathString()).get())),
+                        secretKeyFile,
                         task.getSecretKeyPassphrase().getBytes()
                 );
                 builder.setIdentityInfo(fsOptions, identityInfo);
-                logger.info("set identity: {}", task.getSecretKeyFilePath().get());
+                logger.info("set identity: {}", task.getSecretKeyFilePath().get().getPath().toString());
+                logger.info("checksum of identity: {}", getChecksum(secretKeyFile.toPath()));
             }
 
             if (task.getProxy().isPresent()) {
@@ -344,5 +351,23 @@ public class SftpUtils
             logger.warn("Failed to write buffer, aborting ... ");
             throw new IOException(e);
         }
+    }
+
+    public String getChecksum(Path path)
+    {
+        if (path == null) {
+            return "";
+        }
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            md.update(Files.readAllBytes(path));
+            byte[] digest = md.digest();
+            String myChecksum = DatatypeConverter.printHexBinary(digest).toLowerCase();
+            return myChecksum;
+        }
+        catch (Exception e) {
+            logger.warn("error during get checksum: {}", e.getMessage());
+        }
+        return "";
     }
 }
