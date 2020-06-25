@@ -26,6 +26,7 @@ import org.apache.commons.vfs2.provider.GenericFileName;
 import org.apache.commons.vfs2.provider.sftp.SftpClientFactory;
 import org.apache.commons.vfs2.util.UserAuthenticatorUtils;
 import org.embulk.spi.Exec;
+import org.embulk.spi.util.RetryExecutor;
 import org.slf4j.Logger;
 
 /*
@@ -56,30 +57,65 @@ public class SftpFileProvider extends org.apache.commons.vfs2.provider.sftp.Sftp
             throws FileSystemException
     {
         // JSch jsch = createJSch(fileSystemOptions);
-
         // Create the file system
         final GenericFileName rootName = (GenericFileName) name;
-
         Session session;
         UserAuthenticationData authData = null;
         try {
             authData = UserAuthenticatorUtils.authenticate(fileSystemOptions, AUTHENTICATOR_TYPES);
+            RetryExecutor retryExec = RetryExecutor.retryExecutor()
+                    .withRetryLimit(7)
+                    .withInitialRetryWait(1000) //1 seconds
+                    .withMaxRetryWait(300000); //5 minutes
+            final UserAuthenticationData finalAuthData = authData;
+            session = retryExec.runInterruptible(new RetryExecutor.Retryable<Session>() {
+                public Session call() throws FileSystemException {
+                    try {
+                        return SftpClientFactory.createConnection(rootName.getHostName(), rootName.getPort(),
+                                UserAuthenticatorUtils.getData(finalAuthData, UserAuthenticationData.USERNAME,
+                                        UserAuthenticatorUtils.toChar(rootName.getUserName())),
+                                UserAuthenticatorUtils.getData(finalAuthData, UserAuthenticationData.PASSWORD,
+                                        UserAuthenticatorUtils.toChar(rootName.getPassword())),
+                                fileSystemOptions);
+                    }
+                    catch (Exception e) {
+                        logger.error("Create SFTP connection was failed: {}", e.getMessage());
+                        throw e;
+                    }
+                }
 
-            session = SftpClientFactory.createConnection(rootName.getHostName(), rootName.getPort(),
-                    UserAuthenticatorUtils.getData(authData, UserAuthenticationData.USERNAME,
-                            UserAuthenticatorUtils.toChar(rootName.getUserName())),
-                    UserAuthenticatorUtils.getData(authData, UserAuthenticationData.PASSWORD,
-                            UserAuthenticatorUtils.toChar(rootName.getPassword())),
-                    fileSystemOptions);
+                public boolean isRetryableException(Exception e)
+                {
+                    return true;
+                }
+
+                public void onRetry(Exception exception, int retryCount, int retryLimit, int retryWait)
+                {
+                    String message = String.format("%s failed. Retrying %d/%d after %d seconds. Message: %s",
+                            "Create SFTP connection ", retryCount, retryLimit, retryWait / 1000, exception.getMessage());
+                    if (retryCount % retryLimit == 0) {
+                        logger.warn(message, exception);
+                    }
+                    else {
+                        logger.warn(message);
+                    }
+                }
+
+                public void onGiveup(Exception firstException, Exception lastException) throws RetryExecutor.RetryGiveupException
+                {
+                    logger.error("Giving up on retrying for {}, first exception is [{}], last exception is [{}]",
+                            "Create SFTP connection ", firstException.getMessage(), lastException.getMessage());
+                    throw new RetryExecutor.RetryGiveupException(lastException);
+                }
+            });
+
         }
         catch (final Exception e) {
-            logger.error("Create SFTP connection was failed: {}", e.getMessage());
             throw new FileSystemException("vfs.provider.sftp/connect.error", name, e);
         }
         finally {
             UserAuthenticatorUtils.cleanup(authData);
         }
-
         return new SftpFileSystem(rootName, session, fileSystemOptions);
     }
 }
