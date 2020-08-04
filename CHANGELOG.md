@@ -1,3 +1,6 @@
+0.2.5 (2020-08-10)
+- Close unused Session.
+  - https://github.com/embulk/embulk-output-sftp/pull/60
 0.2.4 (2020-05-20)
 - Add more log to monitor.
   - https://github.com/embulk/embulk-output-sftp/pull/58
