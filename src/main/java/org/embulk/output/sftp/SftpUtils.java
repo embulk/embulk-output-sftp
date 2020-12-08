@@ -184,6 +184,15 @@ public class SftpUtils
                 manager.close();
                 manager = initializeStandardFileSystemManager();
             }
+
+            @Override
+            public void onGiveup(Exception firstException, Exception lastException)
+            {
+                manager.close();
+                if (hasRootCauseUserProblem(lastException)) {
+                    throw new ConfigException(lastException);
+                }
+            }
         });
     }
 
@@ -237,6 +246,15 @@ public class SftpUtils
                 logger.info("renamed remote file: {} to {}", previousFile.getPublicURIString(), afterFile.getPublicURIString());
 
                 return null;
+            }
+
+            @Override
+            public void onGiveup(Exception firstException, Exception lastException)
+            {
+                manager.close();
+                if (hasRootCauseUserProblem(lastException)) {
+                    throw new ConfigException(lastException);
+                }
             }
         });
     }

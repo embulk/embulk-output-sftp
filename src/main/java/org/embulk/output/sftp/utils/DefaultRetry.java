@@ -54,7 +54,7 @@ public abstract class DefaultRetry<T> implements RetryExecutor.Retryable<T>
         return e instanceof JSchException && (e.getMessage().contains("Connection refused"));
     }
 
-    private static boolean hasRootCauseUserProblem(Throwable e)
+    public static boolean hasRootCauseUserProblem(Throwable e)
     {
         while (e != null && !isAuthFail(e) && !isConnectionProblem(e)) {
             e = e.getCause();
