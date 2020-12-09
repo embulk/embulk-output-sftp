@@ -848,7 +848,8 @@ public class TestSftpFileOutputPlugin
                 "host: " + HOST + "\n" +
                 "port: " + PORT + "\n" +
                 "user: " + USERNAME + "\n" +
-                "password: " + PASSWORD + "\n" +
+                "secret_key_file: " + SECRET_KEY_FILE + "\n" +
+                "secret_key_passphrase: " + SECRET_KEY_PASSPHRASE + "\n" +
                 "path_prefix: " + pathPrefix + "\n" +
                 "file_ext: txt\n" +
                 "formatter:\n" +
