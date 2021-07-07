@@ -13,8 +13,8 @@ repositories {
     jcenter()
 }
 
-group = "org.embulk.output.sftp"
-version = "0.2.5"
+group = "org.embulk"
+version = "0.3.0-SNAPSHOT"
 description = "Stores files on SFTP server."
 
 sourceCompatibility = 1.8
