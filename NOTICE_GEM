@@ -1,0 +1,21 @@
+embulk-output-sftp
+Copyright 2015 Civitaspo, and the Embulk project
+
+This product includes software developed by Civitaspo, and in a part of the Embulk project (https://www.embulk.org/).
+It was originally developed by Civitaspo (https://github.com/civitaspo), and then transferred to the Embulk project.
+It was originally licenced under the MIT License before the transfer, and it is now licensed under the Apache Software License, Version 2.0.
+
+This product includes some modified copies from the Apache Commons VFS2.
+The Apache Commons VFS2 is licensed under the Apache Software License, Version 2.0.
+
+The gem distribution of this product includes JARs of the Jackson project (https://github.com/FasterXML/jackson), as-is.
+They are licensed under the Apache Software License, Version 2.0.
+
+The gem distribution of this product includes JARs of the Jakarta Bean Validation API 1.1 (https://beanvalidation.org/1.1/), as-is.
+It is licensed under the Apache Software License, Version 2.0.
+
+The gem distribution of this product includes JARs of Apache Commons IO, Commons Logging, Commons Virtual File System, as-is.
+They are licensed under the Apache Software License, Version 2.0.
+
+The gem distribution of this product includes JARs of JSch - Java Secure Channel (http://www.jcraft.com/jsch/), as-is.
+It is licensed under a BSD-style license: http://www.jcraft.com/jsch/LICENSE.txt
