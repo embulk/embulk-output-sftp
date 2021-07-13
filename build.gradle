@@ -125,6 +125,34 @@ publishing {
                 }
 
                 developers {
+                    developer {
+                        name = "Civitaspo"
+                        email = "civitaspo@gmail.com"
+                    }
+                    developer {
+                        name = "Satoshi Akama"
+                        email = "satoshiakama@gmail.com"
+                    }
+                    developer {
+                        name = "Naotoshi Seo"
+                        email = "sonots@gmail.com"
+                    }
+                    developer {
+                        name = "Khoa Nguyen"
+                        email = "instcode@gmail.com"
+                    }
+                    developer {
+                        name = "Robert Nguyen"
+                        email = "ng.hung83@gmail.com"
+                    }
+                    developer {
+                        name = "John Luong"
+                        email = "jluong@treasure-data.com"
+                    }
+                    developer {
+                        name = "Dai MIKURUBE"
+                        email = "dmikurube@treasure-data.com"
+                    }
                 }
 
                 scm {
