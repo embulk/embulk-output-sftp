@@ -1,7 +1,5 @@
 package org.embulk.output.sftp;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Throwables;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.FileSystemOptions;
@@ -13,10 +11,12 @@ import org.embulk.output.sftp.utils.DefaultRetry;
 import org.embulk.output.sftp.utils.TimedCallable;
 import org.embulk.output.sftp.utils.TimeoutCloser;
 import org.embulk.spi.Exec;
-import org.embulk.spi.unit.LocalFile;
-import org.embulk.spi.util.RetryExecutor.RetryGiveupException;
-import org.embulk.spi.util.RetryExecutor.Retryable;
+import org.embulk.util.config.units.LocalFile;
+import org.embulk.util.retryhelper.RetryExecutor;
+import org.embulk.util.retryhelper.RetryGiveupException;
+import org.embulk.util.retryhelper.Retryable;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.xml.bind.DatatypeConverter;
 
@@ -36,14 +36,13 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 
 import static org.embulk.output.sftp.SftpFileOutputPlugin.PluginTask;
-import static org.embulk.spi.util.RetryExecutor.retryExecutor;
 
 /**
  * Created by takahiro.nakayama on 10/20/15.
  */
 public class SftpUtils
 {
-    private final Logger logger = Exec.getLogger(SftpUtils.class);
+    private final Logger logger = LoggerFactory.getLogger(SftpUtils.class);
     private DefaultFileSystemManager manager;
     private final FileSystemOptions fsOptions;
     private final String userInfo;
@@ -51,7 +50,6 @@ public class SftpUtils
     private final String host;
     private final int port;
     private final int maxConnectionRetry;
-    @VisibleForTesting
     int writeTimeout = 300; // 5 minutes
 
     private DefaultFileSystemManager initializeStandardFileSystemManager()
@@ -320,17 +318,25 @@ public class SftpUtils
     private <T> T withRetry(Retryable<T> call)
     {
         try {
-            return retryExecutor()
+            return RetryExecutor.builder()
                     .withRetryLimit(maxConnectionRetry)
-                    .withInitialRetryWait(500)
-                    .withMaxRetryWait(30 * 1000)
+                    .withInitialRetryWaitMillis(500)
+                    .withMaxRetryWaitMillis(30 * 1000)
+                    .build()
                     .runInterruptible(call);
         }
         catch (RetryGiveupException ex) {
-            throw Throwables.propagate(ex.getCause());
+            final Throwable cause = ex.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            else if (cause instanceof Error) {
+                throw (Error) cause;
+            }
+            throw new RuntimeException(cause);
         }
         catch (InterruptedException ex) {
-            throw Throwables.propagate(ex);
+            throw new RuntimeException(ex);
         }
     }
 

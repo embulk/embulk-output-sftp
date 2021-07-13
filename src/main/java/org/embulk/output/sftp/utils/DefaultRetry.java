@@ -2,13 +2,13 @@ package org.embulk.output.sftp.utils;
 
 import com.jcraft.jsch.JSchException;
 import org.embulk.config.ConfigException;
-import org.embulk.spi.Exec;
-import org.embulk.spi.util.RetryExecutor;
+import org.embulk.util.retryhelper.Retryable;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public abstract class DefaultRetry<T> implements RetryExecutor.Retryable<T>
+public abstract class DefaultRetry<T> implements Retryable<T>
 {
-    private Logger logger = Exec.getLogger(getClass());
+    private Logger logger = LoggerFactory.getLogger(getClass());
 
     private final String task;
 

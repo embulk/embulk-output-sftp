@@ -1,16 +1,15 @@
 package org.embulk.output.sftp;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Throwables;
-import com.google.common.collect.ImmutableMap;
 import org.apache.commons.vfs2.FileObject;
 import org.embulk.config.TaskReport;
 import org.embulk.output.sftp.utils.TimeoutCloser;
 import org.embulk.spi.Buffer;
 import org.embulk.spi.Exec;
 import org.embulk.spi.FileOutput;
+import org.embulk.spi.TempFileSpace;
 import org.embulk.spi.TransactionalFileOutput;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -19,6 +18,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -33,10 +34,11 @@ public class SftpLocalFileOutput
     // to make it clear that it is a constant
     static final String TMP_SUFFIX = ".tmp";
 
-    final Logger logger = Exec.getLogger(getClass());
+    private static final Logger logger = LoggerFactory.getLogger(SftpLocalFileOutput.class);
     private final String pathPrefix;
     private final String sequenceFormat;
     private final String fileNameExtension;
+    private final TempFileSpace tempFileSpace;
     private boolean renameFileAfterUpload;
 
     private final int taskIndex;
@@ -55,13 +57,14 @@ public class SftpLocalFileOutput
     BufferedOutputStream remoteOutput; // to keep output stream open during append mode
     long bufLen = 0L; // local temp file size
 
-    SftpLocalFileOutput(PluginTask task, int taskIndex)
+    SftpLocalFileOutput(final PluginTask task, final int taskIndex, final TempFileSpace tempFileSpace)
     {
         this.pathPrefix = task.getPathPrefix();
         this.sequenceFormat = task.getSequenceFormat();
         this.fileNameExtension = task.getFileNameExtension();
         this.renameFileAfterUpload = task.getRenameFileAfterUpload();
         this.taskIndex = taskIndex;
+        this.tempFileSpace = tempFileSpace;
         this.sftpUtils = new SftpUtils(task);
         this.threshold = task.getTempFileThreshold();
     }
@@ -72,7 +75,7 @@ public class SftpLocalFileOutput
         closeCurrentFile();
 
         try {
-            tempFile = Exec.getTempFileSpace().createTempFile();
+            tempFile = this.tempFileSpace.createTempFile();
             localOutput = new BufferedOutputStream(new FileOutputStream(tempFile));
             appending = false;
             curFilename = getOutputFilePath();
@@ -80,7 +83,7 @@ public class SftpLocalFileOutput
         }
         catch (FileNotFoundException e) {
             logger.error(e.getMessage());
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -103,7 +106,7 @@ public class SftpLocalFileOutput
             bufLen += len;
         }
         catch (IOException ex) {
-            throw Throwables.propagate(ex);
+            throw new RuntimeException(ex);
         }
         finally {
             buffer.release();
@@ -118,7 +121,7 @@ public class SftpLocalFileOutput
             flush();
         }
         catch (IOException e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
         closeRemoteFile();
         // if input config is not `renameFileAfterUpload`
@@ -154,7 +157,7 @@ public class SftpLocalFileOutput
     @Override
     public TaskReport commit()
     {
-        TaskReport report = Exec.newTaskReport();
+        TaskReport report = SftpFileOutputPlugin.CONFIG_MAPPER_FACTORY.newTaskReport();
         report.set("file_list", fileList);
         return report;
     }
@@ -168,7 +171,7 @@ public class SftpLocalFileOutput
             }
         }
         catch (IOException ex) {
-            throw Throwables.propagate(ex);
+            throw new RuntimeException(ex);
         }
     }
 
@@ -188,10 +191,10 @@ public class SftpLocalFileOutput
 
     Map<String, String> fileReport()
     {
-        return ImmutableMap.of(
-                "temporary_filename", tempFilename,
-                "real_filename", curFilename
-        );
+        final LinkedHashMap<String, String> report = new LinkedHashMap<>();
+        report.put("temporary_filename", tempFilename);
+        report.put("real_filename", curFilename);
+        return Collections.unmodifiableMap(report);
     }
 
     private void flush() throws IOException
@@ -209,13 +212,11 @@ public class SftpLocalFileOutput
         }
     }
 
-    @VisibleForTesting
     OutputStream getLocalOutput()
     {
         return localOutput;
     }
 
-    @VisibleForTesting
     OutputStream getRemoteOutput()
     {
         return remoteOutput;

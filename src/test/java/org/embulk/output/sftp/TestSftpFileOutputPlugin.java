@@ -16,21 +16,34 @@ import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider;
 import org.apache.sshd.server.scp.ScpCommandFactory;
 import org.apache.sshd.server.session.ServerSession;
 import org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory;
-import org.embulk.EmbulkTestRuntime;
+import org.embulk.EmbulkSystemProperties;
 import org.embulk.config.ConfigException;
-import org.embulk.config.ConfigLoader;
 import org.embulk.config.ConfigSource;
 import org.embulk.config.TaskReport;
 import org.embulk.config.TaskSource;
+import org.embulk.formatter.csv.CsvFormatterPlugin;
+import org.embulk.input.file.LocalFileInputPlugin;
 import org.embulk.output.sftp.SftpFileOutputPlugin.PluginTask;
+import org.embulk.parser.csv.CsvParserPlugin;
 import org.embulk.spi.Exec;
+import org.embulk.spi.ExecInternal;
+import org.embulk.spi.FileInputPlugin;
+import org.embulk.spi.FileOutputPlugin;
 import org.embulk.spi.FileOutputRunner;
+import org.embulk.spi.FormatterPlugin;
 import org.embulk.spi.OutputPlugin.Control;
 import org.embulk.spi.Page;
 import org.embulk.spi.PageTestUtils;
+import org.embulk.spi.ParserPlugin;
 import org.embulk.spi.Schema;
+import org.embulk.spi.TempFileSpace;
+import org.embulk.spi.TempFileSpaceImpl;
 import org.embulk.spi.TransactionalPageOutput;
 import org.embulk.spi.time.Timestamp;
+import org.embulk.test.TestingEmbulk;
+import org.embulk.util.config.ConfigMapper;
+import org.embulk.util.config.ConfigMapperFactory;
+import org.embulk.util.config.TaskMapper;
 import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Assert;
@@ -45,6 +58,7 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -62,6 +76,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.Random;
 import java.util.concurrent.TimeoutException;
 
@@ -87,8 +102,16 @@ import static org.msgpack.value.ValueFactory.newString;
 
 public class TestSftpFileOutputPlugin
 {
+    private static final EmbulkSystemProperties EMBULK_SYSTEM_PROPERTIES = EmbulkSystemProperties.of(new Properties());
+
     @Rule
-    public EmbulkTestRuntime runtime = new EmbulkTestRuntime();
+    public TestingEmbulk embulk = TestingEmbulk.builder()
+            .setEmbulkSystemProperties(EMBULK_SYSTEM_PROPERTIES)
+            .registerPlugin(FormatterPlugin.class, "csv", CsvFormatterPlugin.class)
+            .registerPlugin(FileInputPlugin.class, "file", LocalFileInputPlugin.class)
+            .registerPlugin(FileOutputPlugin.class, "sftp", SftpFileOutputPlugin.class)
+            .registerPlugin(ParserPlugin.class, "csv", CsvParserPlugin.class)
+            .build();
 
     @Rule
     public ExpectedException exception = ExpectedException.none();
@@ -96,7 +119,11 @@ public class TestSftpFileOutputPlugin
     @Rule
     public TemporaryFolder testFolder = new TemporaryFolder();
 
-    private Logger logger = runtime.getExec().getLogger(TestSftpFileOutputPlugin.class);
+    private static final ConfigMapperFactory CONFIG_MAPPER_FACTORY = SftpFileOutputPlugin.CONFIG_MAPPER_FACTORY;
+    private static final ConfigMapper CONFIG_MAPPER = SftpFileOutputPlugin.CONFIG_MAPPER;
+    private static final TaskMapper TASK_MAPPER = SftpFileOutputPlugin.TASK_MAPPER;
+
+    private Logger logger = LoggerFactory.getLogger(TestSftpFileOutputPlugin.class);
     private FileOutputRunner runner;
     private SshServer sshServer;
     private static final String HOST = "127.0.0.1";
@@ -185,12 +212,6 @@ public class TestSftpFileOutputPlugin
         }
     }
 
-    private ConfigSource getConfigFromYaml(String yaml)
-    {
-        ConfigLoader loader = new ConfigLoader(Exec.getModelManager());
-        return loader.fromYamlString(yaml);
-    }
-
     private List<String> lsR(List<String> fileNames, Path dir)
     {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
@@ -207,40 +228,6 @@ public class TestSftpFileOutputPlugin
             logger.debug(e.getMessage(), e);
         }
         return fileNames;
-    }
-
-    private void run(String configYaml)
-    {
-        ConfigSource config = getConfigFromYaml(configYaml);
-        runner.transaction(config, SCHEMA, 1, new Control()
-        {
-            @Override
-            public List<TaskReport> run(TaskSource taskSource)
-            {
-                TransactionalPageOutput pageOutput = runner.open(taskSource, SCHEMA, 1);
-                boolean committed = false;
-                try {
-                    // Result:
-                    // _c0,_c1,_c2,_c3,_c4,_c5
-                    // true,2,3.0,45,1970-01-01 00:00:00.678000 +0000,{\"k\":\"v\"}
-                    // true,2,3.0,45,1970-01-01 00:00:00.678000 +0000,{\"k\":\"v\"}
-                    for (Page page : PageTestUtils.buildPage(runtime.getBufferAllocator(), SCHEMA,
-                            true, 2L, 3.0D, "45", Timestamp.ofEpochMilli(678L), newMap(newString("k"), newString("v")),
-                            true, 2L, 3.0D, "45", Timestamp.ofEpochMilli(678L), newMap(newString("k"), newString("v")))) {
-                        pageOutput.add(page);
-                    }
-                    pageOutput.commit();
-                    committed = true;
-                }
-                finally {
-                    if (!committed) {
-                        pageOutput.abort();
-                    }
-                    pageOutput.close();
-                }
-                return Lists.newArrayList();
-            }
-        });
     }
 
     private void assertRecordsInFile(String filePath)
@@ -276,28 +263,28 @@ public class TestSftpFileOutputPlugin
     {
         // setting embulk config
         final String pathPrefix = "/test/testUserPassword";
-        String configYaml = "" +
-                "type: sftp\n" +
-                "host: " + HOST + "\n" +
-                "user: " + USERNAME + "\n" +
-                "path_prefix: " + pathPrefix + "\n" +
-                "file_ext: txt\n" +
-                "formatter:\n" +
-                "  type: csv\n" +
-                "  newline: CRLF\n" +
-                "  newline_in_field: LF\n" +
-                "  header_line: true\n" +
-                "  charset: UTF-8\n" +
-                "  quote_policy: NONE\n" +
-                "  quote: \"\\\"\"\n" +
-                "  escape: \"\\\\\"\n" +
-                "  null_string: \"\"\n" +
-                "  default_timezone: 'UTC'";
 
-        ConfigSource config = getConfigFromYaml(configYaml);
-        config.set("host", HOST + " ");
-        PluginTask task = config.loadConfig(PluginTask.class);
+        final ConfigSource formatterConfig = CONFIG_MAPPER_FACTORY.newConfigSource()
+                .set("type", "csv")
+                .set("newline", "CRLF")
+                .set("newline_in_field", "LF")
+                .set("header_line", "true")
+                .set("charset", "UTF-8")
+                .set("quote_policy", "NONE")
+                .set("quote", "\"")
+                .set("escape", "\\")
+                .set("null_string", "")
+                .set("default_timezone", "UTC");
 
+        final ConfigSource config = CONFIG_MAPPER_FACTORY.newConfigSource()
+                .set("type", "sftp")
+                .set("host", HOST + " ")
+                .set("user", USERNAME)
+                .set("path_prefix", pathPrefix)
+                .set("file_ext", "txt")
+                .set("formatter", formatterConfig);
+
+        final PluginTask task = CONFIG_MAPPER.map(config, PluginTask.class);
         SftpUtils utils = new SftpUtils(task);
         utils.validateHost(task);
     }
@@ -307,26 +294,28 @@ public class TestSftpFileOutputPlugin
     {
         // setting embulk config
         final String pathPrefix = "/test/testUserPassword";
-        String configYaml = "" +
-                "type: sftp\n" +
-                "host: " + HOST + "\n" +
-                "user: " + USERNAME + "\n" +
-                "path_prefix: " + pathPrefix + "\n" +
-                "file_ext: txt\n" +
-                "formatter:\n" +
-                "  type: csv\n" +
-                "  newline: CRLF\n" +
-                "  newline_in_field: LF\n" +
-                "  header_line: true\n" +
-                "  charset: UTF-8\n" +
-                "  quote_policy: NONE\n" +
-                "  quote: \"\\\"\"\n" +
-                "  escape: \"\\\\\"\n" +
-                "  null_string: \"\"\n" +
-                "  default_timezone: 'UTC'";
 
-        ConfigSource config = getConfigFromYaml(configYaml);
-        PluginTask task = config.loadConfig(PluginTask.class);
+        final ConfigSource formatterConfig = CONFIG_MAPPER_FACTORY.newConfigSource()
+                .set("type", "csv")
+                .set("newline", "CRLF")
+                .set("newline_in_field", "LF")
+                .set("header_line", "true")
+                .set("charset", "UTF-8")
+                .set("quote_policy", "NONE")
+                .set("quote", "\"")
+                .set("escape", "\\")
+                .set("null_string", "")
+                .set("default_timezone", "UTC");
+
+        final ConfigSource config = CONFIG_MAPPER_FACTORY.newConfigSource()
+                .set("type", "sftp")
+                .set("host", HOST)
+                .set("user", USERNAME)
+                .set("path_prefix", pathPrefix)
+                .set("file_ext", "txt")
+                .set("formatter", formatterConfig);
+
+        final PluginTask task = CONFIG_MAPPER.map(config, PluginTask.class);
 
         assertEquals(HOST, task.getHost());
         assertEquals(22, task.getPort());
@@ -348,33 +337,37 @@ public class TestSftpFileOutputPlugin
     {
         // setting embulk config
         final String pathPrefix = "/test/testUserPassword";
-        String configYaml = "" +
-                "type: sftp\n" +
-                "host: " + HOST + "\n" +
-                "user: " + USERNAME + "\n" +
-                "path_prefix: " + pathPrefix + "\n" +
-                "file_ext: txt\n" +
-                "proxy: \n" +
-                "  type: http\n" +
-                "  host: proxy_host\n" +
-                "  port: 80 \n" +
-                "  user: proxy_user\n" +
-                "  password: proxy_pass\n" +
-                "  command: proxy_command\n" +
-                "formatter:\n" +
-                "  type: csv\n" +
-                "  newline: CRLF\n" +
-                "  newline_in_field: LF\n" +
-                "  header_line: true\n" +
-                "  charset: UTF-8\n" +
-                "  quote_policy: NONE\n" +
-                "  quote: \"\\\"\"\n" +
-                "  escape: \"\\\\\"\n" +
-                "  null_string: \"\"\n" +
-                "  default_timezone: 'UTC'";
 
-        ConfigSource config = getConfigFromYaml(configYaml);
-        PluginTask task = config.loadConfig(PluginTask.class);
+        final ConfigSource proxyConfig = CONFIG_MAPPER_FACTORY.newConfigSource()
+                .set("type", "http")
+                .set("host", "proxy_host")
+                .set("port", "80")
+                .set("user", "proxy_user")
+                .set("password", "proxy_pass")
+                .set("command", "proxy_command");
+
+        final ConfigSource formatterConfig = CONFIG_MAPPER_FACTORY.newConfigSource()
+                .set("type", "csv")
+                .set("newline", "CRLF")
+                .set("newline_in_field", "LF")
+                .set("header_line", "true")
+                .set("charset", "UTF-8")
+                .set("quote_policy", "NONE")
+                .set("quote", "\"")
+                .set("escape", "\\")
+                .set("null_string", "")
+                .set("default_timezone", "UTC");
+
+        final ConfigSource config = CONFIG_MAPPER_FACTORY.newConfigSource()
+                .set("type", "sftp")
+                .set("host", HOST)
+                .set("user", USERNAME)
+                .set("path_prefix", pathPrefix)
+                .set("file_ext", "txt")
+                .set("proxy", proxyConfig)
+                .set("formatter", formatterConfig);
+
+        final PluginTask task = CONFIG_MAPPER.map(config, PluginTask.class);
 
         ProxyTask proxy = task.getProxy().get();
         assertEquals("proxy_command", proxy.getCommand().get());
@@ -396,79 +389,83 @@ public class TestSftpFileOutputPlugin
     //     0 second
 
     @Test
-    public void testUserPasswordAndPutToUserDirectoryRoot()
+    public void testUserPasswordAndPutToUserDirectoryRoot() throws IOException
     {
         // setting embulk config
         final String pathPrefix = "/test/testUserPassword";
-        String configYaml = "" +
-                "type: sftp\n" +
-                "host: " + HOST + "\n" +
-                "port: " + PORT + "\n" +
-                "user: " + USERNAME + "\n" +
-                "password: " + PASSWORD + "\n" +
-                "path_prefix: " + pathPrefix + "\n" +
-                "file_ext: txt\n" +
-                "formatter:\n" +
-                "  type: csv\n" +
-                "  newline: CRLF\n" +
-                "  newline_in_field: LF\n" +
-                "  header_line: true\n" +
-                "  charset: UTF-8\n" +
-                "  quote_policy: NONE\n" +
-                "  quote: \"\\\"\"\n" +
-                "  escape: \"\\\\\"\n" +
-                "  null_string: \"\"\n" +
-                "  default_timezone: 'UTC'";
 
-        // runner.transaction -> ...
-        run(configYaml);
+        final ConfigSource formatterConfig = CONFIG_MAPPER_FACTORY.newConfigSource()
+                .set("type", "csv")
+                .set("newline", "CRLF")
+                .set("newline_in_field", "LF")
+                .set("header_line", "true")
+                .set("charset", "UTF-8")
+                .set("quote_policy", "NONE")
+                .set("quote", "\"")
+                .set("escape", "\\")
+                .set("null_string", "")
+                .set("default_timezone", "UTC");
+
+        final ConfigSource config = CONFIG_MAPPER_FACTORY.newConfigSource()
+                .set("type", "sftp")
+                .set("host", HOST)
+                .set("port", PORT)
+                .set("user", USERNAME)
+                .set("password", PASSWORD)
+                .set("path_prefix", pathPrefix)
+                .set("file_ext", "txt")
+                .set("formatter", formatterConfig);
+
+        this.embulk.runOutput(config, Paths.get(Resources.getResource("in.csv").getPath()));
 
         List<String> fileList = lsR(Lists.<String>newArrayList(), Paths.get(testFolder.getRoot().getAbsolutePath()));
-        assertThat(fileList, hasItem(containsString(pathPrefix + "001.00.txt")));
-        assertRecordsInFile(String.format("%s/%s001.00.txt",
+        assertThat(fileList, hasItem(containsString(pathPrefix + "000.00.txt")));
+        assertRecordsInFile(String.format("%s/%s000.00.txt",
                 testFolder.getRoot().getAbsolutePath(),
                 pathPrefix));
     }
 
     @Test
-    public void testUserSecretKeyFileAndPutToRootDirectory()
+    public void testUserSecretKeyFileAndPutToRootDirectory() throws IOException
     {
         // setting embulk config
         final String pathPrefix = "/test/testUserPassword";
-        String configYaml = "" +
-                "type: sftp\n" +
-                "host: " + HOST + "\n" +
-                "port: " + PORT + "\n" +
-                "user: " + USERNAME + "\n" +
-                "secret_key_file: " + SECRET_KEY_FILE + "\n" +
-                "secret_key_passphrase: " + SECRET_KEY_PASSPHRASE + "\n" +
-                "path_prefix: " + testFolder.getRoot().getAbsolutePath() + pathPrefix + "\n" +
-                "file_ext: txt\n" +
-                "formatter:\n" +
-                "  type: csv\n" +
-                "  newline: CRLF\n" +
-                "  newline_in_field: LF\n" +
-                "  header_line: true\n" +
-                "  charset: UTF-8\n" +
-                "  quote_policy: NONE\n" +
-                "  quote: \"\\\"\"\n" +
-                "  escape: \"\\\\\"\n" +
-                "  null_string: \"\"\n" +
-                "  default_timezone: 'UTC'";
 
-        // runner.transaction -> ...
-        run(configYaml);
+        final ConfigSource formatterConfig = CONFIG_MAPPER_FACTORY.newConfigSource()
+                .set("type", "csv")
+                .set("newline", "CRLF")
+                .set("newline_in_field", "LF")
+                .set("header_line", "true")
+                .set("charset", "UTF-8")
+                .set("quote_policy", "NONE")
+                .set("quote", "\"")
+                .set("escape", "\\")
+                .set("null_string", "")
+                .set("default_timezone", "UTC");
+
+        final ConfigSource config = CONFIG_MAPPER_FACTORY.newConfigSource()
+                .set("type", "sftp")
+                .set("host", HOST)
+                .set("port", PORT)
+                .set("user", USERNAME)
+                .set("secret_key_file", SECRET_KEY_FILE)
+                .set("secret_key_passphrase", SECRET_KEY_PASSPHRASE)
+                .set("path_prefix", testFolder.getRoot().getAbsolutePath() + pathPrefix)
+                .set("file_ext", "txt")
+                .set("formatter", formatterConfig);
+
+        this.embulk.runOutput(config, Paths.get(Resources.getResource("in.csv").getPath()));
 
         List<String> fileList = lsR(Lists.<String>newArrayList(), Paths.get(testFolder.getRoot().getAbsolutePath()));
-        assertThat(fileList, hasItem(containsString(pathPrefix + "001.00.txt")));
+        assertThat(fileList, hasItem(containsString(pathPrefix + "000.00.txt")));
 
-        assertRecordsInFile(String.format("%s/%s001.00.txt",
+        assertRecordsInFile(String.format("%s/%s000.00.txt",
                 testFolder.getRoot().getAbsolutePath(),
                 pathPrefix));
     }
 
     @Test
-    public void testUserSecretKeyFileWithProxy()
+    public void testUserSecretKeyFileWithProxy() throws IOException
     {
         HttpProxyServer proxyServer = null;
         try {
@@ -476,41 +473,45 @@ public class TestSftpFileOutputPlugin
 
             // setting embulk config
             final String pathPrefix = "/test/testUserPassword";
-            String configYaml = "" +
-                    "type: sftp\n" +
-                    "host: " + HOST + "\n" +
-                    "port: " + PORT + "\n" +
-                    "user: " + USERNAME + "\n" +
-                    "secret_key_file: " + SECRET_KEY_FILE + "\n" +
-                    "secret_key_passphrase: " + SECRET_KEY_PASSPHRASE + "\n" +
-                    "path_prefix: " + testFolder.getRoot().getAbsolutePath() + pathPrefix + "\n" +
-                    "file_ext: txt\n" +
-                    "proxy: \n" +
-                    "  type: http\n" +
-                    "  host: " + PROXY_HOST + "\n" +
-                    "  port: " + PROXY_PORT + " \n" +
-                    "  user: " + USERNAME + "\n" +
-                    "  password: " + PASSWORD + "\n" +
-                    "  command: \n" +
-                    "formatter:\n" +
-                    "  type: csv\n" +
-                    "  newline: CRLF\n" +
-                    "  newline_in_field: LF\n" +
-                    "  header_line: true\n" +
-                    "  charset: UTF-8\n" +
-                    "  quote_policy: NONE\n" +
-                    "  quote: \"\\\"\"\n" +
-                    "  escape: \"\\\\\"\n" +
-                    "  null_string: \"\"\n" +
-                    "  default_timezone: 'UTC'";
 
-            // runner.transaction -> ...
-            run(configYaml);
+            final ConfigSource proxyConfig = CONFIG_MAPPER_FACTORY.newConfigSource()
+                    .set("type", "http")
+                    .set("host", PROXY_HOST)
+                    .set("port", PROXY_PORT)
+                    .set("user", USERNAME)
+                    .set("password", PASSWORD)
+                    .set("command", "");
+
+            final ConfigSource formatterConfig = CONFIG_MAPPER_FACTORY.newConfigSource()
+                    .set("type", "csv")
+                    .set("newline", "CRLF")
+                    .set("newline_in_field", "LF")
+                    .set("header_line", "true")
+                    .set("charset", "UTF-8")
+                    .set("quote_policy", "NONE")
+                    .set("quote", "\"")
+                    .set("escape", "\\")
+                    .set("null_string", "")
+                    .set("default_timezone", "UTC");
+
+            final ConfigSource config = CONFIG_MAPPER_FACTORY.newConfigSource()
+                    .set("type", "sftp")
+                    .set("host", HOST)
+                    .set("port", PORT)
+                    .set("user", USERNAME)
+                    .set("secret_key_file", SECRET_KEY_FILE)
+                    .set("secret_key_passphrase", SECRET_KEY_PASSPHRASE)
+                    .set("path_prefix", testFolder.getRoot().getAbsolutePath() + pathPrefix)
+                    .set("file_ext", "txt")
+                    .set("proxy", proxyConfig)
+                    .set("formatter", formatterConfig);
+
+            this.embulk.runOutput(config, Paths.get(Resources.getResource("in.csv").getPath()));
 
             List<String> fileList = lsR(Lists.<String>newArrayList(), Paths.get(testFolder.getRoot().getAbsolutePath()));
-            assertThat(fileList, hasItem(containsString(pathPrefix + "001.00.txt")));
+            assertThat(fileList, hasItem(containsString(pathPrefix + "000.00.txt")));
 
-            assertRecordsInFile(String.format("%s/%s001.00.txt",
+            assertRecordsInFile(String.format("%s/%s000.00.txt",
                     testFolder.getRoot().getAbsolutePath(),
                     pathPrefix));
         }
@@ -598,7 +599,7 @@ public class TestSftpFileOutputPlugin
         catch (Exception e) {
             assertThat(e, CoreMatchers.<Exception>instanceOf(RuntimeException.class));
             assertThat(e.getCause(), CoreMatchers.<Throwable>instanceOf(IOException.class));
-            assertEquals(e.getCause().getMessage(), "Fake IOException");
+            assertEquals("Fake IOException", e.getCause().getMessage());
             // assert used up all retries
             Mockito.verify(utils, Mockito.times(task.getMaxConnectionRetry() + 1)).appendFile(Mockito.any(File.class), Mockito.any(FileObject.class), Mockito.any(BufferedOutputStream.class));
             assertEmptyUploadedFile(defaultPathPrefix);
@@ -627,7 +628,7 @@ public class TestSftpFileOutputPlugin
             assertThat(e, CoreMatchers.<Exception>instanceOf(RuntimeException.class));
             assertThat(e.getCause(), CoreMatchers.<Throwable>instanceOf(IOException.class));
             assertThat(e.getCause().getCause(), CoreMatchers.<Throwable>instanceOf(JSchException.class));
-            assertEquals(e.getCause().getCause().getMessage(), "Auth fail");
+            assertEquals("Auth fail", e.getCause().getCause().getMessage());
             // assert no retry
             Mockito.verify(utils, Mockito.times(1)).appendFile(Mockito.any(File.class), Mockito.any(FileObject.class), Mockito.any(BufferedOutputStream.class));
             assertEmptyUploadedFile(defaultPathPrefix);
@@ -825,49 +826,54 @@ public class TestSftpFileOutputPlugin
     }
 
     @Test
-    public void testSftpFileOutputNextFile()
+    public void testSftpFileOutputNextFile() throws IOException
     {
+        final TempFileSpace tempFileSpace = TempFileSpaceImpl.with(testFolder.newFolder().toPath(), "output-sftp");
+
         SftpFileOutputPlugin.PluginTask task = defaultTask();
 
-        SftpLocalFileOutput localFileOutput = new SftpLocalFileOutput(task, 1);
+        SftpLocalFileOutput localFileOutput = new SftpLocalFileOutput(task, 1, tempFileSpace);
         localFileOutput.nextFile();
         assertNotNull("Must use local temp file", localFileOutput.getLocalOutput());
         assertNull("Must not use remote temp file", localFileOutput.getRemoteOutput());
         localFileOutput.close();
 
-        SftpRemoteFileOutput remoteFileOutput = new SftpRemoteFileOutput(task, 1);
+        SftpRemoteFileOutput remoteFileOutput = new SftpRemoteFileOutput(task, 1, tempFileSpace);
         remoteFileOutput.nextFile();
         assertNull("Must not use local temp file", remoteFileOutput.getLocalOutput());
         assertNotNull("Must use remote temp file", remoteFileOutput.getRemoteOutput());
         remoteFileOutput.close();
     }
 
-    private String defaultConfig(final String pathPrefix)
+    private ConfigSource defaultConfig(final String pathPrefix)
     {
-        return "type: sftp\n" +
-                "host: " + HOST + "\n" +
-                "port: " + PORT + "\n" +
-                "user: " + USERNAME + "\n" +
-                "password: " + PASSWORD + "\n" +
-                "path_prefix: " + pathPrefix + "\n" +
-                "file_ext: txt\n" +
-                "formatter:\n" +
-                "  type: csv\n" +
-                "  newline: CRLF\n" +
-                "  newline_in_field: LF\n" +
-                "  header_line: true\n" +
-                "  charset: UTF-8\n" +
-                "  quote_policy: NONE\n" +
-                "  quote: \"\\\"\"\n" +
-                "  escape: \"\\\\\"\n" +
-                "  null_string: \"\"\n" +
-                "  default_timezone: 'UTC'";
+        final ConfigSource formatterConfig = CONFIG_MAPPER_FACTORY.newConfigSource()
+                .set("type", "csv")
+                .set("newline", "CRLF")
+                .set("newline_in_field", "LF")
+                .set("header_line", "true")
+                .set("charset", "UTF-8")
+                .set("quote_policy", "NONE")
+                .set("quote", "\"")
+                .set("escape", "\\")
+                .set("null_string", "")
+                .set("default_timezone", "UTC");
+
+        return CONFIG_MAPPER_FACTORY.newConfigSource()
+                .set("type", "sftp")
+                .set("host", HOST)
+                .set("port", PORT)
+                .set("user", USERNAME)
+                .set("password", PASSWORD)
+                .set("path_prefix", pathPrefix)
+                .set("file_ext", "txt")
+                .set("formatter", formatterConfig);
     }
 
     private PluginTask defaultTask()
     {
-        ConfigSource config = getConfigFromYaml(defaultConfig(defaultPathPrefix));
-        return config.loadConfig(SftpFileOutputPlugin.PluginTask.class);
+        ConfigSource config = defaultConfig(defaultPathPrefix);
+        return CONFIG_MAPPER.map(config, SftpFileOutputPlugin.PluginTask.class);
     }
 
     private byte[] randBytes(final int len)

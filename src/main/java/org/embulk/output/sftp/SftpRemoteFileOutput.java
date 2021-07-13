@@ -1,14 +1,16 @@
 package org.embulk.output.sftp;
 
-import com.google.common.base.Throwables;
-import com.google.common.util.concurrent.AbstractScheduledService;
-import com.google.common.util.concurrent.Service;
 import org.apache.commons.vfs2.FileSystemException;
 import org.embulk.output.sftp.utils.TimedCallable;
 import org.embulk.spi.Buffer;
+import org.embulk.spi.TempFileSpace;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedOutputStream;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -16,13 +18,15 @@ import static org.embulk.output.sftp.SftpFileOutputPlugin.PluginTask;
 
 public class SftpRemoteFileOutput extends SftpLocalFileOutput
 {
+    private static final Logger logger = LoggerFactory.getLogger(SftpRemoteFileOutput.class);
     private static final int TIMEOUT = 60; // 1min
-    private Service watcher;
+    private ScheduledExecutorService watcher;
 
-    SftpRemoteFileOutput(PluginTask task, int taskIndex)
+    SftpRemoteFileOutput(final PluginTask task, final int taskIndex, final TempFileSpace tempFileSpace)
     {
-        super(task, taskIndex);
+        super(task, taskIndex, tempFileSpace);
         appending = true;
+        this.watcher = null;
     }
 
     @Override
@@ -45,7 +49,7 @@ public class SftpRemoteFileOutput extends SftpLocalFileOutput
         catch (InterruptedException | ExecutionException | TimeoutException ex) {
             logger.error("Failed to write buffer", ex);
             stopWatcher();
-            throw Throwables.propagate(ex);
+            throw new RuntimeException(ex);
         }
         finally {
             buffer.release();
@@ -62,7 +66,17 @@ public class SftpRemoteFileOutput extends SftpLocalFileOutput
     void stopWatcher()
     {
         if (watcher != null) {
-            watcher.stopAsync();
+            try {
+                this.watcher.shutdown();
+                if (!this.watcher.awaitTermination(100, TimeUnit.MILLISECONDS)) {
+                    logger.info("The progress watcher thread did not terminate properly.");
+                    this.watcher.shutdownNow();
+                }
+            }
+            catch (final InterruptedException ex) {
+                logger.info("The progress watcher thread termination was interrupted.", ex);
+                this.watcher.shutdownNow();
+            }
         }
     }
 
@@ -78,11 +92,13 @@ public class SftpRemoteFileOutput extends SftpLocalFileOutput
             remoteFile = sftpUtils.newSftpFile(sftpUtils.getSftpFileUri(tempFilename));
             // this is where it's different from |SftpLocalFileOutput|
             remoteOutput = new BufferedOutputStream(remoteFile.getContent().getOutputStream());
-            watcher = newProgressWatcher().startAsync();
+            // watcher = newProgressWatcher().startAsync();
+            this.watcher = Executors.newSingleThreadScheduledExecutor();
+            this.watcher.scheduleAtFixedRate(newProgressWatcher(), WATCHER_PERIOD, WATCHER_PERIOD, TimeUnit.SECONDS);
         }
         catch (FileSystemException e) {
             stopWatcher();
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -96,25 +112,20 @@ public class SftpRemoteFileOutput extends SftpLocalFileOutput
         stopWatcher();
     }
 
-    private Service newProgressWatcher()
+    private Runnable newProgressWatcher()
     {
-        return new AbstractScheduledService()
+        return new Runnable()
         {
-            private static final int PERIOD = 10; // seconds
             private long prevLen = 0L;
 
             @Override
-            protected void runOneIteration()
+            public void run()
             {
-                logger.info("Upload progress: {} KB - {} KB/s", bufLen / 1024, (bufLen - prevLen) / 1024 / PERIOD);
+                logger.info("Upload progress: {} KB - {} KB/s", bufLen / 1024, (bufLen - prevLen) / 1024 / WATCHER_PERIOD);
                 prevLen = bufLen;
-            }
-
-            @Override
-            protected Scheduler scheduler()
-            {
-                return Scheduler.newFixedRateSchedule(PERIOD, PERIOD, TimeUnit.SECONDS);
             }
         };
     }
+
+    private static final int WATCHER_PERIOD = 10; // seconds
 }

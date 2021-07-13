@@ -25,8 +25,8 @@ import org.apache.commons.vfs2.UserAuthenticationData;
 import org.apache.commons.vfs2.provider.GenericFileName;
 import org.apache.commons.vfs2.provider.sftp.SftpClientFactory;
 import org.apache.commons.vfs2.util.UserAuthenticatorUtils;
-import org.embulk.spi.Exec;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /*
  * We can remove this file when Apache Commons VFS2 removes permission check logic when remote file renaming.
@@ -39,7 +39,7 @@ import org.slf4j.Logger;
  */
 public class SftpFileProvider extends org.apache.commons.vfs2.provider.sftp.SftpFileProvider
 {
-    private final Logger logger = Exec.getLogger(SftpFileProvider.class);
+    private static final Logger logger = LoggerFactory.getLogger(SftpFileProvider.class);
     /**
      * Constructs a new provider.
      */
