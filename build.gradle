@@ -1,16 +1,15 @@
 plugins {
-    id "com.jfrog.bintray" version "1.8.4"
     id "maven-publish"
     id "com.github.kt3k.coveralls" version "2.4.0"
     id "jacoco"
     id "java"
+    id "signing"
     id "checkstyle"
-    id "org.embulk.embulk-plugins" version "0.3.0"
+    id "org.embulk.embulk-plugins" version "0.4.2"
 }
 
 repositories {
     mavenCentral()
-    jcenter()
 }
 
 group = "org.embulk"
@@ -22,19 +21,50 @@ targetCompatibility = 1.8
 
 tasks.withType(JavaCompile) {
     options.compilerArgs << "-Xlint:deprecation" << "-Xlint:unchecked"
+    options.encoding = "UTF-8"
+}
+
+java {
+    withJavadocJar()
+    withSourcesJar()
 }
 
 dependencies {
-    compileOnly "org.embulk:embulk-core:0.9.23"
+    compileOnly "org.embulk:embulk-api:0.10.32"
+    compileOnly "org.embulk:embulk-spi:0.10.32"
+
+    compile("org.embulk:embulk-util-config:0.3.1") {
+        // They conflict with embulk-core. They are once excluded here,
+        // and added explicitly with versions exactly the same with embulk-core:0.10.31.
+        exclude group: "com.fasterxml.jackson.core", module: "jackson-annotations"
+        exclude group: "com.fasterxml.jackson.core", module: "jackson-core"
+        exclude group: "com.fasterxml.jackson.core", module: "jackson-databind"
+        exclude group: "com.fasterxml.jackson.datatype", module: "jackson-datatype-jdk8"
+        exclude group: "javax.validation", module: "validation-api"
+    }
+
+    // They are once excluded from transitive dependencies of other dependencies,
+    // and added explicitly with versions exactly the same with embulk-core:0.10.31.
+    compile "com.fasterxml.jackson.core:jackson-annotations:2.6.7"
+    compile "com.fasterxml.jackson.core:jackson-core:2.6.7"
+    compile "com.fasterxml.jackson.core:jackson-databind:2.6.7"
+    compile "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.6.7"
+    compile "javax.validation:validation-api:1.1.0.Final"
+
+    compile "org.embulk:embulk-util-retryhelper:0.8.2"
+
     compile "org.apache.commons:commons-vfs2:2.2"
     compile "commons-io:commons-io:2.6"
     compile "com.jcraft:jsch:0.1.55"
 
     testCompile "junit:junit:4.13"
-    testCompile "org.embulk:embulk-core:0.9.23:tests"
-    testCompile "org.embulk:embulk-standards:0.9.23"
-    testCompile "org.embulk:embulk-deps-buffer:0.9.23"
-    testCompile "org.embulk:embulk-deps-config:0.9.23"
+    testCompile "org.embulk:embulk-core:0.10.32"
+    testCompile "org.embulk:embulk-core:0.10.32:tests"
+    testCompile "org.embulk:embulk-formatter-csv:0.10.32"
+    testCompile "org.embulk:embulk-input-file:0.10.32"
+    testCompile "org.embulk:embulk-parser-csv:0.10.32"
+    testCompile "org.embulk:embulk-deps:0.10.32"
+    testCompile "org.embulk:embulk-junit4:0.10.32"
     testCompile "org.apache.sshd:apache-sshd:1.1.0+"
     testCompile "org.littleshoot:littleproxy:1.1.0-beta1"
     testCompile "io.netty:netty-all:4.0.34.Final"
@@ -47,69 +77,94 @@ embulkPlugin {
     type = "sftp"
 }
 
-// add tests/javadoc/source jar tasks as artifacts to be released
-task testsJar(type: Jar, dependsOn: classes) {
-    classifier = 'tests'
-    from sourceSets.test.output
+javadoc {
+    options {
+        locale = "en_US"
+        encoding = "UTF-8"
+    }
 }
-task sourcesJar(type: Jar, dependsOn: classes) {
-    classifier = 'sources'
-    from sourceSets.main.allSource
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            groupId = project.group
+            artifactId = project.name
+
+            from components.java  // Must be "components.java". The dependency modification works only for it.
+            // javadocJar and sourcesJar are added by java.withJavadocJar() and java.withSourcesJar() above.
+            // See: https://docs.gradle.org/current/javadoc/org/gradle/api/plugins/JavaPluginExtension.html
+
+            pom {  // https://central.sonatype.org/pages/requirements.html
+                packaging "jar"
+
+                name = project.name
+                description = project.description
+                url = "https://www.embulk.org/"
+
+                licenses {
+                    license {
+                        // http://central.sonatype.org/pages/requirements.html#license-information
+                        name = "MIT License"
+                        url = "http://www.opensource.org/licenses/mit-license.php"
+                    }
+                }
+
+                developers {
+                }
+
+                scm {
+                    connection = "scm:git:git://github.com/embulk/embulk-output-sftp.git"
+                    developerConnection = "scm:git:git@github.com:embulk/embulk-output-sftp.git"
+                    url = "https://github.com/embulk/embulk-output-sftp"
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {  // publishMavenPublicationToMavenCentralRepository
+            name = "mavenCentral"
+            if (project.version.endsWith("-SNAPSHOT")) {
+                url "https://oss.sonatype.org/content/repositories/snapshots"
+            } else {
+                url "https://oss.sonatype.org/service/local/staging/deploy/maven2"
+            }
+
+            credentials {
+                username = project.hasProperty("ossrhUsername") ? ossrhUsername : ""
+                password = project.hasProperty("ossrhPassword") ? ossrhPassword : ""
+            }
+        }
+    }
 }
-task javadocJar(type: Jar, dependsOn: javadoc) {
-    classifier = 'javadoc'
-    from javadoc.destinationDir
+
+signing {
+    sign publishing.publications.maven
+}
+
+gem {
+    authors = [ "Civitaspo", "Satoshi Akama" ]
+    email = [ "civitaspo@gmail.com", "satoshiakama@gmail.com" ]
+    summary = "SFTP file output plugin for Embulk"
+    homepage = "https://github.com/embulk/embulk-output-sftp"
+    licenses = [ "MIT" ]
+}
+
+gemPush {
+    host = "https://rubygems.org"
+}
+
+test {
+    testLogging {
+        outputs.upToDateWhen { false }
+        showStandardStreams = true
+    }
 }
 
 jacocoTestReport {
     reports {
         xml.enabled = true // coveralls plugin depends on xml format report
         html.enabled = true
-    }
-}
-
-javadoc {
-    options {
-        locale = 'en_US'
-        encoding = 'UTF-8'
-    }
-}
-
-// bintray
-bintray {
-    // write at your bintray user name and api key to ~/.gradle/gradle.properties file:
-    user = project.hasProperty('bintray_user') ? bintray_user : ''
-    key = project.hasProperty('bintray_api_key') ? bintray_api_key : ''
-
-    publications = [ "embulkMavenRelease" ]
-    publish = true
-
-    pkg {
-        userOrg = 'embulk-output-sftp'
-        repo = 'maven'
-        name = project.name
-        desc = 'SFTP output plugin for Embulk'
-        websiteUrl = 'https://github.com/embulk/embulk-output-sftp'
-        issueTrackerUrl = 'https://github.com/embulk/embulk-output-sftp/issues'
-        vcsUrl = 'https://github.com/embulk/embulk-output-sftp.git'
-        licenses = ['MIT']
-        labels = ['embulk', 'java']
-        publicDownloadNumbers = true
-
-        version {
-            name = project.version
-        }
-    }
-}
-
-publishing {
-    publications {
-        embulkMavenRelease(MavenPublication) {  // Publish it with "publishEmbulkPluginMavenPublicationTo???Repository".
-            from components.java
-            artifact testsJar
-            artifact sourcesJar
-            artifact javadocJar
-        }
     }
 }
 
@@ -128,16 +183,4 @@ checkstyleTest {
 task checkstyle(type: Checkstyle) {
     classpath = sourceSets.main.output + sourceSets.test.output
     source = sourceSets.main.allJava + sourceSets.test.allJava
-}
-
-gem {
-    authors = [ "Civitaspo", "Satoshi Akama" ]
-    email = [ "civitaspo@gmail.com", "satoshiakama@gmail.com" ]
-    summary = "SFTP file output plugin for Embulk"
-    homepage = "https://github.com/embulk/embulk-output-sftp"
-    licenses = [ "MIT" ]
-}
-
-gemPush {
-    host = "https://rubygems.org"
 }

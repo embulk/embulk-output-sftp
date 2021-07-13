@@ -1,8 +1,5 @@
 package org.embulk.output.sftp.utils;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Throwables;
-
 import java.io.Closeable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -35,11 +32,10 @@ public class TimeoutCloser implements Closeable
             }.call(timeout, TimeUnit.SECONDS);
         }
         catch (InterruptedException | ExecutionException | TimeoutException e) {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 
-    @VisibleForTesting
     public static void setTimeout(int timeout)
     {
         TimeoutCloser.timeout = timeout;

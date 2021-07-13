@@ -1,7 +1,7 @@
-name: Build and test
+name: Test
 on: push
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
@@ -9,7 +9,7 @@ jobs:
       uses: actions/setup-java@v1
       with:
         java-version: 1.8
-    - name: Build with testing
-      run: ./gradlew --stacktrace test
-    - name: Build with testing
+    - name: Test
+      run: ./gradlew test
+    - name: Report
       run: ./gradlew jacocoTestReport coveralls

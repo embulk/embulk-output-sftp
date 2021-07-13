@@ -1,16 +1,19 @@
 package org.embulk.output.sftp;
 
-import org.embulk.config.Config;
-import org.embulk.config.ConfigDefault;
 import org.embulk.config.ConfigDiff;
 import org.embulk.config.ConfigSource;
-import org.embulk.config.Task;
 import org.embulk.config.TaskReport;
 import org.embulk.config.TaskSource;
 import org.embulk.spi.Exec;
 import org.embulk.spi.FileOutputPlugin;
 import org.embulk.spi.TransactionalFileOutput;
-import org.embulk.spi.unit.LocalFile;
+import org.embulk.util.config.Config;
+import org.embulk.util.config.ConfigDefault;
+import org.embulk.util.config.ConfigMapper;
+import org.embulk.util.config.ConfigMapperFactory;
+import org.embulk.util.config.Task;
+import org.embulk.util.config.TaskMapper;
+import org.embulk.util.config.units.LocalFile;
 
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
@@ -94,7 +97,7 @@ public class SftpFileOutputPlugin
     public ConfigDiff transaction(ConfigSource config, int taskCount,
             FileOutputPlugin.Control control)
     {
-        PluginTask task = config.loadConfig(PluginTask.class);
+        final PluginTask task = CONFIG_MAPPER.map(config, PluginTask.class);
         SftpUtils sftpUtils = null;
         try {
             sftpUtils = new SftpUtils(task);
@@ -110,8 +113,8 @@ public class SftpFileOutputPlugin
         // return resume(task.dump(), taskCount, control);
 
         // non-retryable (non-idempotent) output:
-        control.run(task.dump());
-        return Exec.newConfigDiff();
+        control.run(task.toTaskSource());
+        return CONFIG_MAPPER_FACTORY.newConfigDiff();
     }
 
     @Override
@@ -127,7 +130,7 @@ public class SftpFileOutputPlugin
             int taskCount,
             List<TaskReport> successTaskReports)
     {
-        PluginTask task = taskSource.loadTask(PluginTask.class);
+        final PluginTask task = TASK_MAPPER.map(taskSource, PluginTask.class);
 
         if (task.getRenameFileAfterUpload()) {
             SftpUtils sftpUtils = null;
@@ -154,10 +157,14 @@ public class SftpFileOutputPlugin
     @Override
     public TransactionalFileOutput open(TaskSource taskSource, final int taskIndex)
     {
-        final PluginTask task = taskSource.loadTask(PluginTask.class);
+        final PluginTask task = TASK_MAPPER.map(taskSource, PluginTask.class);
         if (task.getLocalBuffering()) {
-            return new SftpLocalFileOutput(task, taskIndex);
+            return new SftpLocalFileOutput(task, taskIndex, Exec.getTempFileSpace());
         }
-        return new SftpRemoteFileOutput(task, taskIndex);
+        return new SftpRemoteFileOutput(task, taskIndex, Exec.getTempFileSpace());
     }
+
+    static final ConfigMapperFactory CONFIG_MAPPER_FACTORY = ConfigMapperFactory.builder().addDefaultModules().build();
+    static final ConfigMapper CONFIG_MAPPER = CONFIG_MAPPER_FACTORY.createConfigMapper();
+    static final TaskMapper TASK_MAPPER = CONFIG_MAPPER_FACTORY.createTaskMapper();
 }
