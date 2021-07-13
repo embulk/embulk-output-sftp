@@ -14,6 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/*
+ * This file is a modified copy from the Apache Commons VFS2.
+ *
+ * We can remove this file when Apache Commons VFS2 removes permission check logic when remote file renaming.
+ * https://github.com/embulk/embulk-output-sftp/issues/40
+ * https://github.com/embulk/embulk-output-sftp/pull/44
+ * https://issues.apache.org/jira/browse/VFS-590
+ */
 package org.embulk.output.sftp.provider.sftp;
 
 import com.jcraft.jsch.Session;
@@ -28,12 +36,6 @@ import org.apache.commons.vfs2.util.UserAuthenticatorUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/*
- * We can remove this file when Apache Commons VFS2 removes permission check logic when remote file renaming.
- * https://github.com/embulk/embulk-output-sftp/issues/40
- * https://github.com/embulk/embulk-output-sftp/pull/44
- * https://issues.apache.org/jira/browse/VFS-590
- */
 /**
  * A provider for accessing files over SFTP.
  */

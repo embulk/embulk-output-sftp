@@ -1,0 +1,9 @@
+embulk-output-sftp
+Copyright 2015 Civitaspo, and the Embulk project
+
+This product includes software developed by Civitaspo, and in a part of the Embulk project (https://www.embulk.org/).
+It was originally developed by Civitaspo (https://github.com/civitaspo), and then transferred to the Embulk project.
+It was originally licenced under the MIT License before the transfer, and it is now licensed under the Apache Software License, Version 2.0.
+
+This product includes some modified copies from the Apache Commons VFS2.
+The Apache Commons VFS2 is licensed under the Apache Software License, Version 2.0.
