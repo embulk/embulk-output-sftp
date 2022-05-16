@@ -13,7 +13,7 @@ repositories {
 }
 
 group = "org.embulk"
-version = "0.3.1"
+version = "0.3.1-SNAPSHOT"
 description = "Stores files on SFTP server."
 
 sourceCompatibility = 1.8
