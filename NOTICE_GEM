@@ -14,7 +14,7 @@ They are licensed under the Apache Software License, Version 2.0.
 The gem distribution of this product includes JARs of the Jakarta Bean Validation API 1.1 (https://beanvalidation.org/1.1/), as-is.
 It is licensed under the Apache Software License, Version 2.0.
 
-The gem distribution of this product includes JARs of Apache Commons IO, Commons Logging, Commons Virtual File System, as-is.
+The gem distribution of this product includes JARs of Apache Commons IO, Commons Logging, Commons Virtual File System, Commons BeanUtils, Commons Lang, BVal, as-is.
 They are licensed under the Apache Software License, Version 2.0.
 
 The gem distribution of this product includes JARs of JSch - Java Secure Channel (http://www.jcraft.com/jsch/), as-is.

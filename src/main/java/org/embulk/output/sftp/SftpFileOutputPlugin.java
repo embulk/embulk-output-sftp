@@ -16,6 +16,7 @@
 
 package org.embulk.output.sftp;
 
+import org.apache.bval.jsr303.ApacheValidationProvider;
 import org.embulk.config.ConfigDiff;
 import org.embulk.config.ConfigSource;
 import org.embulk.config.TaskReport;
@@ -31,6 +32,8 @@ import org.embulk.util.config.Task;
 import org.embulk.util.config.TaskMapper;
 import org.embulk.util.config.units.LocalFile;
 
+import javax.validation.Validation;
+import javax.validation.Validator;
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 
@@ -180,7 +183,9 @@ public class SftpFileOutputPlugin
         return new SftpRemoteFileOutput(task, taskIndex, Exec.getTempFileSpace());
     }
 
-    static final ConfigMapperFactory CONFIG_MAPPER_FACTORY = ConfigMapperFactory.builder().addDefaultModules().build();
+    private static final Validator VALIDATOR =
+            Validation.byProvider(ApacheValidationProvider.class).configure().buildValidatorFactory().getValidator();
+    static final ConfigMapperFactory CONFIG_MAPPER_FACTORY = ConfigMapperFactory.builder().addDefaultModules().withValidator(VALIDATOR).build();
     static final ConfigMapper CONFIG_MAPPER = CONFIG_MAPPER_FACTORY.createConfigMapper();
     static final TaskMapper TASK_MAPPER = CONFIG_MAPPER_FACTORY.createTaskMapper();
 }
