@@ -178,6 +178,10 @@ public class SftpUtils
             public Void call() throws Exception
             {
                 final FileObject remoteFile = newSftpFile(getSftpFileUri(remotePath));
+                if (remoteFile == null) {
+                    logger.warn("Received null from newSftpFile. Skipping further processing.");
+                    return null;
+                }
                 final BufferedOutputStream outputStream = openStream(remoteFile);
                 // When channel is broken, closing resource may hang, hence the time-out wrapper
                 try (final TimeoutCloser ignored = new TimeoutCloser(outputStream)) {
@@ -310,6 +314,13 @@ public class SftpUtils
         if (file.exists()) {
             file.delete();
         }
+
+        FileObject parent = file.getParent();
+        if (parent == null) {
+            logger.warn("Unable to retrieve the parent directory for {}. Skipping further processing.", file.getPublicURIString());
+            return null;
+        }
+
         if (file.getParent().exists()) {
             logger.info("parent directory {} exists there", file.getParent().getPublicURIString());
         }

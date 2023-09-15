@@ -9,3 +9,4 @@ build/
 *.iml
 example/config.yml
 .vagrant
+/bin/

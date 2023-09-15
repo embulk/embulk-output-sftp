@@ -106,6 +106,10 @@ public class SftpRemoteFileOutput extends SftpLocalFileOutput
             tempFilename = curFilename + TMP_SUFFIX;
             // resolve remote file & open output stream
             remoteFile = sftpUtils.newSftpFile(sftpUtils.getSftpFileUri(tempFilename));
+            if (remoteFile == null) {
+                logger.warn("Failed to create new SFTP file for {}. Skipping further processing.", tempFilename);
+                return;
+            }
             // this is where it's different from |SftpLocalFileOutput|
             remoteOutput = new BufferedOutputStream(remoteFile.getContent().getOutputStream());
             // watcher = newProgressWatcher().startAsync();
