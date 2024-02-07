@@ -274,7 +274,6 @@ public class TestSftpFileOutputPlugin
         }
     }
 
-    /*
     @Test(expected = ConfigException.class)
     public void testInvalidHost()
     {
@@ -404,7 +403,6 @@ public class TestSftpFileOutputPlugin
     //     not user_directory_is_root
     //   timeout
     //     0 second
-    */
 
     @Test
     public void testUserPasswordAndPutToUserDirectoryRoot() throws IOException
@@ -442,7 +440,6 @@ public class TestSftpFileOutputPlugin
                 testFolder.getRoot().getAbsolutePath(),
                 pathPrefix));
     }
-    /*
 
     @Test
     public void testUserSecretKeyFileAndPutToRootDirectory() throws IOException
@@ -920,5 +917,4 @@ public class TestSftpFileOutputPlugin
         File output = new File(filePath);
         assertEquals(0, output.length());
     }
-    */
 }
