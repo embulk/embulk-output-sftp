@@ -10,6 +10,6 @@ jobs:
       with:
         java-version: 1.8
     - name: Test
-      run: ./gradlew test
+      run: ./gradlew --info --stacktrace test
     - name: Report
       run: ./gradlew jacocoTestReport coveralls
