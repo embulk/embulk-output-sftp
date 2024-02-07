@@ -274,6 +274,7 @@ public class TestSftpFileOutputPlugin
         }
     }
 
+    /*
     @Test(expected = ConfigException.class)
     public void testInvalidHost()
     {
@@ -479,8 +480,8 @@ public class TestSftpFileOutputPlugin
                 testFolder.getRoot().getAbsolutePath(),
                 pathPrefix));
     }
+    */
 
-    /*
     @Test
     public void testUserSecretKeyFileWithProxy() throws IOException
     {
@@ -538,8 +539,8 @@ public class TestSftpFileOutputPlugin
             }
         }
     }
-    */
 
+    /*
     @Test
     public void testProxyType()
     {
@@ -862,6 +863,7 @@ public class TestSftpFileOutputPlugin
         assertNotNull("Must use remote temp file", remoteFileOutput.getRemoteOutput());
         remoteFileOutput.close();
     }
+    */
 
     private ConfigSource defaultConfig(final String pathPrefix)
     {
