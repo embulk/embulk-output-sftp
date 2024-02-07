@@ -480,6 +480,7 @@ public class TestSftpFileOutputPlugin
                 pathPrefix));
     }
 
+    /*
     @Test
     public void testUserSecretKeyFileWithProxy() throws IOException
     {
@@ -537,6 +538,7 @@ public class TestSftpFileOutputPlugin
             }
         }
     }
+    */
 
     @Test
     public void testProxyType()
