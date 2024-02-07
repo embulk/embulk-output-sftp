@@ -1,11 +1,11 @@
 plugins {
-    id "maven-publish"
-    id "com.github.kt3k.coveralls" version "2.4.0"
-    id "jacoco"
     id "java"
+    id "maven-publish"
     id "signing"
+    id "org.embulk.embulk-plugins" version "0.6.2"
     id "checkstyle"
-    id "org.embulk.embulk-plugins" version "0.4.2"
+    id "jacoco"
+    id "com.github.kt3k.coveralls" version "2.4.0"
 }
 
 repositories {
@@ -16,8 +16,10 @@ group = "org.embulk"
 version = "0.4.0-SNAPSHOT"
 description = "Stores files on SFTP server."
 
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
+configurations {
+    compileClasspath.resolutionStrategy.activateDependencyLocking()
+    runtimeClasspath.resolutionStrategy.activateDependencyLocking()
+}
 
 tasks.withType(JavaCompile) {
     options.compilerArgs << "-Xlint:deprecation" << "-Xlint:unchecked"
@@ -25,15 +27,18 @@ tasks.withType(JavaCompile) {
 }
 
 java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(8)
+    }
+
     withJavadocJar()
     withSourcesJar()
 }
 
 dependencies {
-    compileOnly "org.embulk:embulk-api:0.10.32"
-    compileOnly "org.embulk:embulk-spi:0.10.32"
+    compileOnly "org.embulk:embulk-spi:0.11"
 
-    compile("org.embulk:embulk-util-config:0.3.1") {
+    implementation("org.embulk:embulk-util-config:0.3.4") {
         // They conflict with embulk-core. They are once excluded here,
         // and added explicitly with versions exactly the same with embulk-core:0.10.31.
         exclude group: "com.fasterxml.jackson.core", module: "jackson-annotations"
@@ -45,36 +50,35 @@ dependencies {
 
     // They are once excluded from transitive dependencies of other dependencies,
     // and added explicitly with versions exactly the same with embulk-core:0.10.31.
-    compile "com.fasterxml.jackson.core:jackson-annotations:2.6.7"
-    compile "com.fasterxml.jackson.core:jackson-core:2.6.7"
-    compile "com.fasterxml.jackson.core:jackson-databind:2.6.7"
-    compile "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.6.7"
-    compile "javax.validation:validation-api:1.1.0.Final"
-    compile "org.apache.bval:bval-jsr303:0.5"
+    implementation "com.fasterxml.jackson.core:jackson-annotations:2.6.7"
+    implementation "com.fasterxml.jackson.core:jackson-core:2.6.7"
+    implementation "com.fasterxml.jackson.core:jackson-databind:2.6.7.5"
+    implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.6.7"
+    implementation "javax.validation:validation-api:1.1.0.Final"
+    implementation "org.apache.bval:bval-jsr303:0.5"
     // Necessary for bval from Java 9+
-    compile 'javax.xml.bind:jaxb-api:2.2.11'
-    compile 'com.sun.xml.bind:jaxb-core:2.2.11'
-    compile 'com.sun.xml.bind:jaxb-impl:2.2.11'
-    compile 'javax.activation:activation:1.1.1'
+    implementation 'javax.xml.bind:jaxb-api:2.2.11'
+    implementation 'com.sun.xml.bind:jaxb-core:2.2.11'
+    implementation 'com.sun.xml.bind:jaxb-impl:2.2.11'
+    implementation 'javax.activation:activation:1.1.1'
 
-    compile "org.embulk:embulk-util-retryhelper:0.8.2"
+    implementation "org.embulk:embulk-util-retryhelper:0.9.0"
 
-    compile "org.apache.commons:commons-vfs2:2.2"
-    compile "commons-io:commons-io:2.6"
-    compile "com.jcraft:jsch:0.1.55"
+    implementation "org.apache.commons:commons-vfs2:2.2"
+    implementation "commons-io:commons-io:2.6"
+    implementation "com.jcraft:jsch:0.1.55"
 
-    testCompile "junit:junit:4.13"
-    testCompile "org.embulk:embulk-core:0.10.32"
-    testCompile "org.embulk:embulk-core:0.10.32:tests"
-    testCompile "org.embulk:embulk-formatter-csv:0.10.32"
-    testCompile "org.embulk:embulk-input-file:0.10.32"
-    testCompile "org.embulk:embulk-parser-csv:0.10.32"
-    testCompile "org.embulk:embulk-deps:0.10.32"
-    testCompile "org.embulk:embulk-junit4:0.10.32"
-    testCompile "org.apache.sshd:apache-sshd:1.1.0+"
-    testCompile "org.littleshoot:littleproxy:1.1.0-beta1"
-    testCompile "io.netty:netty-all:4.0.34.Final"
-    testCompile "org.mockito:mockito-core:2.28.2"
+    testImplementation "junit:junit:4.13"
+    testImplementation "org.embulk:embulk-core:0.11.2"
+    testImplementation "org.embulk:embulk-deps:0.11.2"
+    testImplementation "org.embulk:embulk-formatter-csv:0.11.1"
+    testImplementation "org.embulk:embulk-input-file:0.11.0"
+    testImplementation "org.embulk:embulk-parser-csv:0.11.4"
+    testImplementation "org.embulk:embulk-junit4:0.11.2"
+    testImplementation "org.apache.sshd:apache-sshd:1.1.0+"
+    testImplementation "org.littleshoot:littleproxy:1.1.0-beta1"
+    testImplementation "io.netty:netty-all:4.0.34.Final"
+    testImplementation "org.mockito:mockito-core:2.28.2"
 }
 
 embulkPlugin {
@@ -91,18 +95,43 @@ javadoc {
 }
 
 jar {
-    from rootProject.file("LICENSE")
-    from rootProject.file("NOTICE")
+    metaInf {
+        from rootProject.file("LICENSE")
+        from rootProject.file("NOTICE")
+    }
 }
 
 sourcesJar {
-    from rootProject.file("LICENSE")
-    from rootProject.file("NOTICE")
+    metaInf {
+        from rootProject.file("LICENSE")
+        from rootProject.file("NOTICE")
+    }
 }
 
 javadocJar {
-    from rootProject.file("LICENSE")
-    from rootProject.file("NOTICE")
+    metaInf {
+        from rootProject.file("LICENSE")
+        from rootProject.file("NOTICE")
+    }
+}
+
+// A safer and strict alternative to: "dependencies" (and "dependencies --write-locks")
+//
+// This task fails explicitly when the specified dependency is not available.
+// In contrast, "dependencies (--write-locks)" does not fail even when a part the dependencies are unavailable.
+//
+// https://docs.gradle.org/7.6.1/userguide/dependency_locking.html#generating_and_updating_dependency_locks
+task checkDependencies {
+    notCompatibleWithConfigurationCache("The task \"checkDependencies\" filters configurations at execution time.")
+    doLast {
+        configurations.findAll { it.canBeResolved }.each { it.resolve() }
+    }
+}
+
+// It should not publish a `.module` file in Maven Central.
+// https://docs.gradle.org/current/userguide/publishing_gradle_module_metadata.html#sub:disabling-gmm-publication
+tasks.withType(GenerateModuleMetadata) {
+    enabled = false
 }
 
 publishing {
@@ -127,6 +156,7 @@ publishing {
                         // http://central.sonatype.org/pages/requirements.html#license-information
                         name = "The Apache License, Version 2.0"
                         url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                        distribution = "repo"
                     }
                 }
 
@@ -157,7 +187,7 @@ publishing {
                     }
                     developer {
                         name = "Dai MIKURUBE"
-                        email = "dmikurube@treasure-data.com"
+                        email = "dmikurube@acm.org"
                     }
                 }
 
@@ -165,6 +195,17 @@ publishing {
                     connection = "scm:git:git://github.com/embulk/embulk-output-sftp.git"
                     developerConnection = "scm:git:git@github.com:embulk/embulk-output-sftp.git"
                     url = "https://github.com/embulk/embulk-output-sftp"
+                }
+
+                withXml {
+                    project.configurations.compileOnly.allDependencies.each { dependency ->
+                        asNode().dependencies[0].appendNode("dependency").with {
+                            it.appendNode("groupId", dependency.group)
+                            it.appendNode("artifactId", dependency.name)
+                            it.appendNode("version", dependency.version)
+                            it.appendNode("scope", "provided")
+                        }
+                    }
                 }
             }
         }
@@ -188,6 +229,10 @@ publishing {
 }
 
 signing {
+    if (project.hasProperty("signingKey") && project.hasProperty("signingPassword")) {
+        logger.lifecycle("Signing with an in-memory key.")
+        useInMemoryPgpKeys(signingKey, signingPassword)
+    }
     sign publishing.publications.maven
 }
 
@@ -209,8 +254,13 @@ gemPush {
 
 test {
     testLogging {
-        outputs.upToDateWhen { false }
+        events "passed", "skipped", "failed", "standardOut", "standardError"
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        showCauses = true
+        showExceptions = true
+        showStackTraces = true
         showStandardStreams = true
+        outputs.upToDateWhen { false }
     }
 }
 
