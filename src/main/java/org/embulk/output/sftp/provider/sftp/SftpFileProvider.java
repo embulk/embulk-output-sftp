@@ -79,7 +79,7 @@ public class SftpFileProvider extends org.apache.commons.vfs2.provider.sftp.Sftp
             throw new FileSystemException("vfs.provider.sftp/connect.error", name, e);
         }
         finally {
-            if(session != null && session.isConnected()){
+            if (session != null && session.isConnected()) {
                 session.disconnect();
             }
             UserAuthenticatorUtils.cleanup(authData);
