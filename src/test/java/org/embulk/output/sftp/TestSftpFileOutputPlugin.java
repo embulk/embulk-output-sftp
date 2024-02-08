@@ -135,6 +135,9 @@ public class TestSftpFileOutputPlugin
     @Rule
     public TemporaryFolder testFolder = new TemporaryFolder();
 
+    public String oldVfsSftpSshdir = null;
+    public String dotSshFolder = null;
+
     private static final ConfigMapperFactory CONFIG_MAPPER_FACTORY = SftpFileOutputPlugin.CONFIG_MAPPER_FACTORY;
     private static final ConfigMapper CONFIG_MAPPER = SftpFileOutputPlugin.CONFIG_MAPPER;
     private static final TaskMapper TASK_MAPPER = SftpFileOutputPlugin.TASK_MAPPER;
@@ -165,6 +168,10 @@ public class TestSftpFileOutputPlugin
     public void createResources()
             throws IOException
     {
+        this.dotSshFolder = testFolder.newFolder().getAbsolutePath();
+        this.oldVfsSftpSshdir = System.getProperty("vfs.sftp.sshdir");
+        System.setProperty("vfs.sftp.sshdir", this.dotSshFolder);
+
         // setup the plugin
         SftpFileOutputPlugin sftpFileOutputPlugin = new SftpFileOutputPlugin();
         runner = new FileOutputRunner(sftpFileOutputPlugin);
@@ -225,6 +232,14 @@ public class TestSftpFileOutputPlugin
         }
         catch (Exception e) {
             logger.debug(e.getMessage(), e);
+        }
+        finally {
+            if (this.oldVfsSftpSshdir == null) {
+                System.clearProperty("vfs.sftp.sshdir");
+            }
+            else {
+                System.setProperty("vfs.sftp.sshdir", this.oldVfsSftpSshdir);
+            }
         }
     }
 
