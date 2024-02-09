@@ -59,11 +59,18 @@ dependencies {
 
     compile "org.embulk:embulk-util-retryhelper:0.8.2"
 
-    compile "org.apache.commons:commons-vfs2:2.2"
+    compile("org.apache.commons:commons-vfs2:2.2") {
+        exclude group: "commons-logging", module: "commons-logging"
+    }
     compile "commons-io:commons-io:2.6"
     compile "com.jcraft:jsch:0.1.55"
 
+    compile("org.slf4j:jcl-over-slf4j:1.7.30") {
+        exclude group: "org.slf4j", module: "slf4j-api"
+    }
+
     testCompile "junit:junit:4.13"
+    testCompile "ch.qos.logback:logback-classic:1.2.13"
     testCompile "org.embulk:embulk-core:0.10.32"
     testCompile "org.embulk:embulk-core:0.10.32:tests"
     testCompile "org.embulk:embulk-formatter-csv:0.10.32"
