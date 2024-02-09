@@ -19,6 +19,13 @@ package org.embulk.output.sftp;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 import com.google.common.io.Resources;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.DefaultHttpResponse;
+import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponse;
 import com.jcraft.jsch.JSchException;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
@@ -68,8 +75,12 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
+import org.littleshoot.proxy.HttpFilters;
+import org.littleshoot.proxy.HttpFiltersAdapter;
+import org.littleshoot.proxy.HttpFiltersSourceAdapter;
 import org.littleshoot.proxy.HttpProxyServer;
 import org.littleshoot.proxy.impl.DefaultHttpProxyServer;
+
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -83,6 +94,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -221,6 +233,150 @@ public class TestSftpFileOutputPlugin
     {
         return DefaultHttpProxyServer.bootstrap()
                 .withPort(port)
+                .withFiltersSource(new HttpFiltersSourceAdapter() {
+                        public HttpFilters filterRequest(HttpRequest originalRequest, ChannelHandlerContext ctx) {
+                            return new HttpFiltersAdapter(originalRequest) {
+                                @Override
+                                public HttpResponse clientToProxyRequest(final HttpObject httpObject) {
+                                    if (httpObject instanceof DefaultHttpRequest) {
+                                        final DefaultHttpRequest request = (DefaultHttpRequest) httpObject;
+                                        logger.info(
+                                                "<HttpProxyServer Filter> clientToProxyRequest DefaultHttpRequest method={} uri={} protocolVersion={} headers={} keep-alive={}",
+                                                request.getMethod(),
+                                                request.getUri(),
+                                                request.getProtocolVersion(),
+                                                request.headers().entries(),
+                                                HttpHeaders.isKeepAlive(request));
+                                    }
+                                    else {
+                                        logger.info("<HttpProxyServer Filter> clientToProxyRequest {}", httpObject);
+                                    }
+                                    return null;
+                                }
+
+                                @Override
+                                public HttpObject proxyToClientResponse(final HttpObject httpObject) {
+                                    if (httpObject instanceof DefaultHttpResponse) {
+                                        final DefaultHttpResponse response = (DefaultHttpResponse) httpObject;
+                                        logger.info(
+                                                "<HttpProxyServer Filter> proxyToClientResponse DefaultHttpResponse status={} protocolVersion={} headers={} keep-alive={}",
+                                                response.getStatus(),
+                                                response.getProtocolVersion(),
+                                                response.headers().entries(),
+                                                HttpHeaders.isKeepAlive(response));
+                                    }
+                                    else {
+                                        logger.info("<HttpProxyServer Filter> proxyToClientResponse {}", httpObject);
+                                    }
+                                    return httpObject;
+                                }
+
+                                @Override
+                                public void proxyToServerConnectionFailed() {
+                                    logger.info("<HttpProxyServer Filter> proxyToServerConnectionFailed");
+                                }
+
+                                @Override
+                                public void proxyToServerConnectionQueued() {
+                                    logger.info("<HttpProxyServer Filter> proxyToServerConnectionQueued");
+                                }
+
+                                @Override
+                                public void proxyToServerConnectionSSLHandshakeStarted() {
+                                    logger.info("<HttpProxyServer Filter> proxyToServerConnectionSSLHandshakeStarted");
+                                }
+
+                                @Override
+                                public void proxyToServerConnectionStarted() {
+                                    logger.info("<HttpProxyServer Filter> proxyToServerConnectionStarted");
+                                }
+
+                                @Override
+                                public void proxyToServerConnectionSucceeded(ChannelHandlerContext serverCtx) {
+                                    logger.info("<HttpProxyServer Filter> proxyToServerConnectionSucceeded");
+                                }
+
+                                @Override
+                                public HttpResponse proxyToServerRequest(HttpObject httpObject) {
+                                    if (httpObject instanceof DefaultHttpRequest) {
+                                        final DefaultHttpRequest request = (DefaultHttpRequest) httpObject;
+                                        logger.info(
+                                                "<HttpProxyServer Filter> proxyToServerRequest DefaultHttpRequest method={} uri={} protocolVersion={} headers={} keep-alive={}",
+                                                request.getMethod(),
+                                                request.getUri(),
+                                                request.getProtocolVersion(),
+                                                request.headers().entries(),
+                                                HttpHeaders.isKeepAlive(request));
+                                    }
+                                    else {
+                                        logger.info("<HttpProxyServer Filter> proxyToServerRequest {}", httpObject);
+                                    }
+                                    return null;
+                                }
+
+                                @Override
+                                public void proxyToServerRequestSending() {
+                                    logger.info("<HttpProxyServer Filter> proxyToServerRequestSending");
+                                }
+
+                                @Override
+                                public void proxyToServerRequestSent() {
+                                    logger.info("<HttpProxyServer Filter> proxyToServerRequestSent");
+                                }
+
+                                @Override
+                                public void proxyToServerResolutionFailed(final String hostAndPort) {
+                                    logger.info("<HttpProxyServer Filter> proxyToServerResolutionFailed {}", hostAndPort);
+                                }
+
+                                @Override
+                                public InetSocketAddress proxyToServerResolutionStarted(final String resolvingServerHostAndPort) {
+                                    logger.info("<HttpProxyServer Filter> proxyToServerResolutionStarted {}", resolvingServerHostAndPort);
+                                    return null;
+                                }
+
+                                @Override
+                                public void proxyToServerResolutionSucceeded(final String serverHostAndPort, final InetSocketAddress resolvedRemoteAddress) {
+                                    logger.info(
+                                            "<HttpProxyServer Filter> proxyToServerResolutionSucceeded {} {}",
+                                            serverHostAndPort,
+                                            resolvedRemoteAddress);
+                                }
+
+                                @Override
+                                public HttpObject serverToProxyResponse(final HttpObject httpObject) {
+                                    if (httpObject instanceof DefaultHttpResponse) {
+                                        final DefaultHttpResponse response = (DefaultHttpResponse) httpObject;
+                                        logger.info(
+                                                "<HttpProxyServer Filter> serverToProxyResponse DefaultHttpResponse status={} protocolVersion={} headers={} keep-alive={}",
+                                                response.getStatus(),
+                                                response.getProtocolVersion(),
+                                                response.headers().entries(),
+                                                HttpHeaders.isKeepAlive(response));
+                                    }
+                                    else {
+                                        logger.info("<HttpProxyServer Filter> serverToProxyResponse {}", httpObject);
+                                    }
+                                    return httpObject;
+                                }
+
+                                @Override
+                                public void serverToProxyResponseReceived() {
+                                    logger.info("<HttpProxyServer Filter> serverToProxyResponseReceived");
+                                }
+
+                                @Override
+                                public void serverToProxyResponseReceiving() {
+                                    logger.info("<HttpProxyServer Filter> serverToProxyResponseReceiving");
+                                }
+
+                                @Override
+                                public void serverToProxyResponseTimedOut() {
+                                    logger.info("<HttpProxyServer Filter> serverToProxyResponseTimedOut");
+                                }
+                            };
+                        }
+                    })
                 .start();
     }
 
