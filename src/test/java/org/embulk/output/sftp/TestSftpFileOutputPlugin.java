@@ -690,6 +690,7 @@ public class TestSftpFileOutputPlugin
                     .set("secret_key_passphrase", SECRET_KEY_PASSPHRASE)
                     .set("path_prefix", testFolder.getRoot().getAbsolutePath() + pathPrefix)
                     .set("file_ext", "txt")
+                    .set("max_connection_retry", 1)
                     .set("proxy", proxyConfig)
                     .set("formatter", formatterConfig);
 
